@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FW-Frontdisplay Steuerung</title>
+<style>
+  :root{--amber:#e8820f;--bg:#16181d;--card:#1f2229;--line:#333;--txt:#eee}
+  *{box-sizing:border-box;font-family:system-ui,Segoe UI,Arial,sans-serif}
+  body{margin:0;background:var(--bg);color:var(--txt);padding:18px;max-width:560px;margin:auto}
+  h1{font-size:20px;margin:.2em 0 .6em}
+  h2{font-size:13px;color:#9aa;margin:4px 0 8px;text-transform:uppercase;letter-spacing:.05em}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+  label{display:block;font-size:13px;color:#aaa;margin:10px 0 4px}
+  input[type=text],select{width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:#12141a;color:var(--txt);font-size:15px}
+  input[type=range]{width:100%} input[type=color]{width:100%;height:40px;border:0;background:none}
+  .btn{background:var(--amber);color:#111;border:0;border-radius:10px;padding:11px 14px;font-size:15px;font-weight:600;cursor:pointer;width:100%}
+  .btn.sec{background:#2a2e36;color:var(--txt)}
+  .btn.pwr{background:#3a3f4a;color:var(--txt)} .btn.pwr.on{background:#2e7d32;color:#fff}
+  .btn.mini{width:auto;padding:8px 10px;font-size:14px}
+  .status{font-size:13px;color:#9aa;margin-top:8px}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#c44;margin-right:6px} .dot.on{background:#3a3}
+  .prow{display:flex;gap:6px;align-items:center;margin-bottom:6px} .prow .name{flex:1;text-align:left}
+  .hint{font-size:12px;color:#778;margin-top:6px}
+</style>
+</head>
+<body>
+  <h1>🚒 FW-Frontdisplay</h1>
+
+  <div class="card">
+    <button id="connect" class="btn">Mit Display verbinden</button>
+    <div class="status"><span id="dot" class="dot"></span><span id="state">getrennt</span></div>
+  </div>
+
+  <div id="controls" style="opacity:.4;pointer-events:none">
+
+    <div class="card"><button id="power" class="btn pwr">Panel: AUS</button></div>
+
+    <div class="card">
+      <h2>Presets</h2>
+      <div id="presets"></div>
+      <div class="prow" style="margin-top:8px">
+        <button class="btn sec mini" id="addPreset">＋ Aktuelle Einstellung speichern</button>
+        <button class="btn sec mini" id="resetPresets">↺ Standard</button>
+      </div>
+      <div class="hint" id="storeHint"></div>
+    </div>
+
+    <div class="card">
+      <h2>Text</h2>
+      <label>Textmodus</label>
+      <select id="textmode">
+        <option value="1">Wortwechsel</option><option value="2">Laufschrift</option><option value="0">Aus</option>
+      </select>
+      <label>Anzeigetext &nbsp;<span style="color:#778">(Wörter mit | trennen)</span></label>
+      <input id="text" type="text" maxlength="63" value="FEUER|WEHR|EINSATZ">
+      <button class="btn sec" id="sendText" style="margin-top:8px">Text senden</button>
+      <label>Symbol &nbsp;<span style="color:#778">(läuft kombiniert mit Text & Animation im Wechsel)</span></label>
+      <select id="symbol">
+        <option value="0">Kein Symbol</option>
+        <option value="1">Rettungsgasse bilden</option>
+        <option value="2">Achtung</option>
+        <option value="3">Unfall</option>
+        <option value="4">Stau</option>
+        <option value="5">Sperrung</option>
+      </select>
+      <label>Textfarbe</label>
+      <input id="tcolor" type="color" value="#ff5000">
+      <label>Wort-Standzeit (ms): <span id="wmVal">450</span></label>
+      <input id="wordms" type="range" min="60" max="2000" step="10" value="450">
+      <label>Laufschrift-Tempo (ms/Schritt): <span id="smVal">35</span></label>
+      <input id="scrollms" type="range" min="5" max="120" value="35">
+    </div>
+
+    <div class="card">
+      <h2>Animation</h2>
+      <label>Animationsart</label>
+      <select id="animmode">
+        <option value="1">Blitz</option><option value="2">Wig-Wag (links/rechts)</option><option value="0">Aus</option>
+      </select>
+      <label>Animationsfarbe &nbsp;<span style="color:#778">(Blitz / Wig-Wag links)</span></label>
+      <input id="acolor" type="color" value="#ff5000">
+      <label>Wig-Wag rechte Farbe</label>
+      <input id="wcolor" type="color" value="#ffae00">
+      <label>Blitzmuster &nbsp;<span style="color:#778">(nur Blitz)</span></label>
+      <select id="flashpat">
+        <option value="0">Gleichmäßig</option><option value="1">Doppelblitz</option><option value="2">Dreifachblitz</option>
+      </select>
+      <label>Animationstakt (ms): <span id="atVal">250</span></label>
+      <input id="animtakt" type="range" min="40" max="1000" step="10" value="250">
+      <label>Wiederholungen je Durchlauf: <span id="arVal">2</span></label>
+      <input id="animrep" type="range" min="1" max="10" value="2">
+    </div>
+
+    <div class="card">
+      <h2>Darstellung</h2>
+      <label>Maximale Helligkeit (Tag): <span id="brVal">255</span></label>
+      <input id="bright" type="range" min="10" max="255" value="255">
+      <label style="display:flex;align-items:center;gap:8px"><input id="autodim" type="checkbox" checked style="width:auto"> Nachts automatisch abdunkeln</label>
+      <label>Minimaler Dimmwert (Nacht): <span id="mdVal">31</span></label>
+      <input id="mindim" type="range" min="1" max="255" value="31">
+      <p style="margin:4px 0 0;color:#778;font-size:12px">Bei Dunkelheit wird sanft bis zum Min-Wert abgedimmt, bei hellem Licht bis zur Max-Helligkeit – mit weichem Übergang.</p>
+      <label>Spiegelschrift &nbsp;<span style="color:#778">(für Rückspiegel des Vordermanns)</span></label>
+      <select id="mirror"><option value="0">Normal</option><option value="1">Gespiegelt</option><option value="2">Normal + gespiegelt im Wechsel</option></select>
+      <label style="display:flex;align-items:center;gap:8px"><input id="buzzer" type="checkbox" checked style="width:auto"> Akustische Rückmeldung (Piezo)</label>
+    </div>
+
+    <div class="card">
+      <h2>Gerät &amp; System</h2>
+      <label>Bluetooth-Name (Basis – MAC-Endung wird automatisch angehängt)</label>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="btname" maxlength="19" placeholder="FW-Frontdisplay" style="flex:1">
+        <button class="btn sec" id="btnameSave" style="white-space:nowrap">Speichern</button>
+      </div>
+      <p style="margin:4px 0 10px;color:#778;font-size:12px">Eindeutiger Name fürs Koppeln, z. B. „FW-Frontdisplay-3A7C". Änderung wird nach einem Neustart aktiv.</p>
+      <hr style="border:none;border-top:1px solid #2a2d36;margin:12px 0">
+      <label style="display:flex;align-items:center;gap:8px"><input id="pinOn" type="checkbox" style="width:auto"> Kopplung mit PIN schützen</label>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <input type="number" id="pinVal" inputmode="numeric" min="0" max="999999" placeholder="6-stellige PIN (nur zum Ändern)" style="flex:1">
+        <button class="btn sec" id="pinSave" style="white-space:nowrap">Übernehmen</button>
+      </div>
+      <p style="margin:4px 0 10px;color:#778;font-size:12px">Wird nach einem Neustart aktiv. PIN-Feld leer lassen = bestehende PIN behalten. PIN vergessen? Am Gerät beim Einschalten den Taster 3 s halten – das schaltet den Schutz ab.</p>
+      <hr style="border:none;border-top:1px solid #2a2d36;margin:12px 0">
+      <label>Geräte-Presets &nbsp;<span style="color:#778">(auch per Doppelklick am Taster umschaltbar)</span></label>
+      <div id="devpresets"></div>
+      <p style="margin:4px 0 10px;color:#778;font-size:12px">Tippen = Slot laden. 💾 speichert die aktuellen Einstellungen auf den Slot.</p>
+      <label style="display:flex;align-items:center;gap:8px"><input id="wifi" type="checkbox" style="width:auto"> WLAN/OTA aktiv &nbsp;<span style="color:#778">(am Gerät: langer Tastendruck)</span></label>
+      <hr style="border:none;border-top:1px solid #2a2d36;margin:12px 0">
+      <label>Spannungsüberwachung &amp; System</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div><span style="font-size:12px;color:#778">Abschalten unter (V)</span><input id="uvOff" type="number" step="0.1" min="9" max="13" value="11.8"></div>
+        <div><span style="font-size:12px;color:#778">Wieder frei ab (V)</span><input id="uvOn" type="number" step="0.1" min="9" max="14" value="12.3"></div>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:8px"><input id="bootTest" type="checkbox" checked style="width:auto"> Selbsttest beim Einschalten (LED-Durchlauf)</label>
+      <div style="display:flex;gap:8px;align-items:flex-end;margin-top:8px">
+        <div style="flex:1"><span style="font-size:12px;color:#778">Kalibrieren: gemessene Akkuspannung (V)</span><input id="calV" type="number" step="0.1" placeholder="z. B. 12.6"></div>
+        <button class="btn sec" id="calBtn" style="white-space:nowrap">Kalibrieren</button>
+      </div>
+      <button class="btn" id="sysSave" style="margin-top:8px">Spannungs-Einstellungen senden</button>
+      <div class="hint" id="sysStatus">Status: –</div>
+    </div>
+
+    <div class="card">
+      <h2>Wartung &amp; Backup</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn sec" id="lampTest">💡 Lampentest (Weiß 5 s)</button>
+        <button class="btn sec" id="symTest">▦ Alle Symbole testen</button>
+      </div>
+      <hr style="border:none;border-top:1px solid #2a2d36;margin:12px 0">
+      <label>Einstellungs-Backup</label>
+      <p style="margin:4px 0 8px;color:#778;font-size:12px">Exportiert die aktuellen Geräte-Einstellungen als Datei. Import schreibt sie zurück – praktisch nach einem Neu-Flashen (löscht den Speicher).</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn sec" id="bkExport">⬇ Exportieren</button>
+        <label class="btn sec" style="cursor:pointer">⬆ Datei wählen<input id="bkFile" type="file" accept=".json,application/json" style="display:none"></label>
+        <button class="btn" id="bkImport">Importieren</button>
+      </div>
+      <textarea id="bkText" placeholder="Hier erscheint das Backup beim Export – oder JSON zum Import einfügen." style="width:100%;height:84px;margin-top:8px;font-family:monospace;font-size:12px"></textarea>
+      <div class="hint" id="bkHint"></div>
+    </div>
+  </div>
+
+<script>
+const SVC="f0a00000-1234-4a3c-8c00-aabbccddeeff";
+const U={text:"f0a00001",textmode:"f0a00002",animmode:"f0a00003",bright:"f0a00004",tcolor:"f0a00005",
+         scrollms:"f0a00006",wordms:"f0a00007",animtakt:"f0a00008",flashpat:"f0a00009",animrep:"f0a0000a",
+         autodim:"f0a0000b",power:"f0a0000c",acolor:"f0a0000d",wigcolor:"f0a0000e",mirror:"f0a0000f",buzzer:"f0a00010",mindim:"f0a00011",preset:"f0a00012",state:"f0a00013",wifi:"f0a00014",symbol:"f0a00015",syscfg:"f0a00016",test:"f0a00017",btname:"f0a00018",blepin:"f0a00019"};
+const uuid=s=>`${s}-1234-4a3c-8c00-aabbccddeeff`;
+let chars={};
+const $=id=>document.getElementById(id);
+const enc=new TextEncoder();
+const rgb=h=>Uint8Array.of(parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16));
+const u16=v=>Uint8Array.of(v&255,v>>8);
+function setState(ok,t){$("dot").className="dot"+(ok?" on":"");$("state").textContent=t;
+  $("controls").style.opacity=ok?1:.4;$("controls").style.pointerEvents=ok?"auto":"none";}
+const write=async(k,d)=>{ if(chars[k]) await chars[k].writeValue(d); };
+
+$("connect").onclick=async()=>{
+  if(!navigator.bluetooth){ setState(false,"Web-Bluetooth nicht verfügbar – bitte Chrome/Edge (Android oder Desktop) nutzen. iOS/Safari/Firefox unterstützen es nicht."); return; }
+  try{
+    const dev=await navigator.bluetooth.requestDevice({filters:[{services:[SVC]},{namePrefix:"FW-Frontdisplay"}],optionalServices:[SVC]});
+    setState(false,"verbinde…");
+    const s=await (await dev.gatt.connect()).getPrimaryService(SVC);
+    for(const k in U){ try{ chars[k]=await s.getCharacteristic(uuid(U[k])); }catch(_){ /* aeltere Firmware: Characteristic fehlt evtl. */ } }
+    dev.addEventListener("gattserverdisconnected",()=>setState(false,"getrennt"));
+    setState(true,"verbunden: "+(dev.name||"Display"));
+    try{
+      await chars.state.startNotifications();
+      chars.state.addEventListener("characteristicvaluechanged",e=>{
+        try{ applyState(JSON.parse(new TextDecoder().decode(e.target.value)),false); }catch(_){}
+      });
+      applyState(JSON.parse(new TextDecoder().decode(await chars.state.readValue())),true);
+      try{ const bn=new TextDecoder().decode(await chars.btname.readValue()); if(bn) $("btname").value=bn; }catch(_){}
+      try{ const d=await chars.blepin.readValue(); $("pinOn").checked = d.byteLength>0 && d.getUint8(0)===1; }catch(_){}
+    }catch(_){}
+  }catch(e){setState(false,"Fehler: "+e.message);}
+};
+
+let powerOn=false;
+$("power").onclick=()=>{ powerOn=!powerOn;
+  $("power").textContent="Panel: "+(powerOn?"AN":"AUS"); $("power").classList.toggle("on",powerOn);
+  write("power",Uint8Array.of(powerOn?1:0)); };
+
+$("sendText").onclick=()=>write("text",enc.encode($("text").value));
+$("textmode").onchange=e=>write("textmode",Uint8Array.of(+e.target.value));
+$("symbol").onchange=e=>write("symbol",Uint8Array.of(+e.target.value));
+$("animmode").onchange=e=>write("animmode",Uint8Array.of(+e.target.value));
+$("flashpat").onchange=e=>write("flashpat",Uint8Array.of(+e.target.value));
+$("tcolor").oninput=e=>write("tcolor",rgb(e.target.value));
+$("acolor").oninput=e=>write("acolor",rgb(e.target.value));
+$("wcolor").oninput=e=>write("wigcolor",rgb(e.target.value));
+$("wordms").oninput=e=>{$("wmVal").textContent=e.target.value;write("wordms",u16(+e.target.value));};
+$("scrollms").oninput=e=>{$("smVal").textContent=e.target.value;write("scrollms",u16(+e.target.value));};
+$("animtakt").oninput=e=>{$("atVal").textContent=e.target.value;write("animtakt",u16(+e.target.value));};
+$("animrep").oninput=e=>{$("arVal").textContent=e.target.value;write("animrep",Uint8Array.of(+e.target.value));};
+$("bright").oninput=e=>{$("brVal").textContent=e.target.value;write("bright",Uint8Array.of(+e.target.value));};
+$("autodim").onchange=e=>write("autodim",Uint8Array.of(e.target.checked?1:0));
+$("mindim").oninput=e=>{$("mdVal").textContent=e.target.value;write("mindim",Uint8Array.of(+e.target.value));};
+$("mirror").onchange=e=>write("mirror",Uint8Array.of(+e.target.value));
+$("buzzer").onchange=e=>write("buzzer",Uint8Array.of(e.target.checked?1:0));
+
+// ---------- Presets ----------
+const DEFAULTS=[
+  {name:"Einsatzfahrt", text:"FEUER|WEHR|EINSATZ", tm:1, am:1, fp:1, wm:450, sm:30, at:250, ar:2, tc:"#ff5000", ac:"#ff5000", wc:"#ffae00"},
+  {name:"Platz machen", text:"BITTE|PLATZ|MACHEN", tm:1, am:2, fp:0, wm:450, sm:30, at:200, ar:3, tc:"#ff7a00", ac:"#ff3000", wc:"#ffd000"},
+  {name:"Achtung",      text:"ACHTUNG",            tm:1, am:1, fp:2, wm:500, sm:30, at:250, ar:3, tc:"#ff2a00", ac:"#ff2a00", wc:"#ffae00"},
+];
+let presets=[], persistent=true;
+function load(){ try{const s=localStorage.getItem("fw_presets");presets=s?JSON.parse(s):DEFAULTS.slice();}catch(e){persistent=false;presets=DEFAULTS.slice();} }
+function save(){ try{localStorage.setItem("fw_presets",JSON.stringify(presets));}catch(e){persistent=false;}
+  $("storeHint").textContent=persistent?"Presets werden im Browser gespeichert.":"Speichern dauerhaft nur im eigenen Browser; sonst nur für diese Sitzung."; }
+function capture(){ return {text:$("text").value,tm:+$("textmode").value,am:+$("animmode").value,fp:+$("flashpat").value,
+  wm:+$("wordms").value,sm:+$("scrollms").value,at:+$("animtakt").value,ar:+$("animrep").value,
+  tc:$("tcolor").value, ac:$("acolor").value, wc:$("wcolor").value}; }
+async function apply(p){
+  const tc=p.tc||p.color||"#ff5000", ac=p.ac||p.color||"#ff5000", wc=p.wc||ac;
+  if(p.text!=="") { await write("text",enc.encode(p.text)); $("text").value=p.text; }
+  await write("tcolor",rgb(tc)); $("tcolor").value=tc;
+  await write("acolor",rgb(ac)); $("acolor").value=ac;
+  await write("wigcolor",rgb(wc)); $("wcolor").value=wc;
+  await write("wordms",u16(p.wm));   $("wordms").value=p.wm;   $("wmVal").textContent=p.wm;
+  await write("scrollms",u16(p.sm)); $("scrollms").value=p.sm; $("smVal").textContent=p.sm;
+  await write("animtakt",u16(p.at)); $("animtakt").value=p.at; $("atVal").textContent=p.at;
+  await write("animrep",Uint8Array.of(p.ar)); $("animrep").value=p.ar; $("arVal").textContent=p.ar;
+  await write("flashpat",Uint8Array.of(p.fp)); $("flashpat").value=p.fp;
+  await write("animmode",Uint8Array.of(p.am)); $("animmode").value=p.am;
+  await write("textmode",Uint8Array.of(p.tm)); $("textmode").value=p.tm;
+}
+function render(){ const c=$("presets"); c.innerHTML="";
+  presets.forEach((p,i)=>{ const row=document.createElement("div"); row.className="prow";
+    const a=document.createElement("button"); a.className="btn sec name"; a.textContent=p.name; a.onclick=()=>apply(p);
+    const u=document.createElement("button"); u.className="btn sec mini"; u.textContent="⟳"; u.title="mit aktuellen Einstellungen überschreiben";
+      u.onclick=()=>{presets[i]={name:presets[i].name,...capture()};save();render();};
+    const e=document.createElement("button"); e.className="btn sec mini"; e.textContent="✎"; e.title="umbenennen";
+      e.onclick=()=>{const n=prompt("Neuer Name:",p.name);if(n){presets[i].name=n;save();render();}};
+    const d=document.createElement("button"); d.className="btn sec mini"; d.textContent="🗑"; d.title="löschen";
+      d.onclick=()=>{presets.splice(i,1);save();render();};
+    row.append(a,u,e,d); c.appendChild(row); });
+}
+$("addPreset").onclick=()=>{const n=prompt("Name des neuen Presets:");if(!n)return;presets.push({name:n,...capture()});save();render();};
+$("resetPresets").onclick=()=>{if(confirm("Presets auf Standard zurücksetzen?")){presets=DEFAULTS.slice();save();render();}};
+// ---------- Geraete-Presets / System / Readback ----------
+const DEVN=4;
+function renderDev(){ const c=$("devpresets"); if(!c) return; c.innerHTML="";
+  for(let i=0;i<DEVN;i++){
+    const wrap=document.createElement("span"); wrap.style.cssText="display:inline-flex;gap:4px;margin:0 6px 6px 0";
+    const a=document.createElement("button"); a.className="btn sec name"; a.textContent="Slot "+(i+1); a.dataset.i=i;
+    a.onclick=()=>write("preset",Uint8Array.of(0,i));
+    const sv=document.createElement("button"); sv.className="btn sec mini"; sv.textContent="💾"; sv.title="aktuelle Einstellungen auf diesen Slot speichern";
+    sv.onclick=()=>{ if(confirm("Aktuelle Einstellungen auf Slot "+(i+1)+" speichern?")) write("preset",Uint8Array.of(1,i)); };
+    wrap.append(a,sv); c.appendChild(wrap);
+  }
+}
+$("wifi").onchange=e=>write("wifi",Uint8Array.of(e.target.checked?1:0));
+
+const toHex=a=>"#"+a.map(x=>(+x).toString(16).padStart(2,"0")).join("");
+function applyState(st, full){
+  lastFullState = st;   // fuer Backup-Export
+  // Live-Status (bei jeder Meldung): Panel, WLAN, aktives Preset, Lux
+  if("power" in st){ powerOn=!!st.power; $("power").textContent="Panel: "+(powerOn?"AN":"AUS"); $("power").classList.toggle("on",powerOn); }
+  if("wifi" in st) $("wifi").checked=!!st.wifi;
+  const lux=("lux" in st)?(st.lux<0?"–":st.lux+" lx"):"–";
+  const pr=("preset" in st)?("Slot "+(st.preset+1)):"–";
+  const wf=st.wifi?"WLAN AN":"WLAN aus";
+  if("vbat" in st) lastVbat=st.vbat/10;
+  const vb=("vbat" in st)?(st.vbat/10).toFixed(1)+" V":"–";
+  const tp=("temp" in st && st.temp>0)?(" · "+st.temp+" °C"):"";
+  const fwv=st.fw?(" · FW "+st.fw):"";
+  const warn=st.uvlock?"  ⚠ UNTERSPANNUNG – Panel gesperrt":"";
+  $("sysStatus").textContent=`Status: ${wf} · Preset ${pr} · Licht ${lux} · Akku ${vb}${tp}${fwv}${warn}`;
+  $("sysStatus").style.color = st.uvlock ? "#ff6a6a" : "";
+  document.querySelectorAll("#devpresets .name").forEach(b=>b.classList.toggle("on",+b.dataset.i===st.preset));
+  if(!full) return;   // editierbare Felder nur einmal beim Verbinden befuellen
+  if("text" in st) $("text").value=st.text;
+  if("textMode" in st) $("textmode").value=st.textMode;
+  if("symbol" in st) $("symbol").value=st.symbol;
+  if("uvOff" in st) $("uvOff").value=(st.uvOff/10).toFixed(1);
+  if("uvOn" in st) $("uvOn").value=(st.uvOn/10).toFixed(1);
+  if("bootTest" in st) $("bootTest").checked=!!st.bootTest;
+  if("vGain" in st) curVGain=st.vGain;
+  if("animMode" in st) $("animmode").value=st.animMode;
+  if("flashPat" in st) $("flashpat").value=st.flashPat;
+  if("mirror" in st) $("mirror").value=st.mirror;
+  if("bright" in st){ $("bright").value=st.bright; $("brVal").textContent=st.bright; }
+  if("minDim" in st){ $("mindim").value=st.minDim; $("mdVal").textContent=st.minDim; }
+  if("autoDim" in st) $("autodim").checked=!!st.autoDim;
+  if("buzzer" in st) $("buzzer").checked=!!st.buzzer;
+  if("wordMs" in st){ $("wordms").value=st.wordMs; $("wmVal").textContent=st.wordMs; }
+  if("scrollMs" in st){ $("scrollms").value=st.scrollMs; $("smVal").textContent=st.scrollMs; }
+  if("animTakt" in st){ $("animtakt").value=st.animTakt; $("atVal").textContent=st.animTakt; }
+  if("animRep" in st){ $("animrep").value=st.animRep; $("arVal").textContent=st.animRep; }
+  if(st.tcolor) $("tcolor").value=toHex(st.tcolor);
+  if(st.acolor) $("acolor").value=toHex(st.acolor);
+  if(st.wcolor) $("wcolor").value=toHex(st.wcolor);
+}
+renderDev();
+// ---------- Spannung / System ----------
+let curVGain=1000, lastVbat=0, lastFullState=null;
+function sendSyscfg(){
+  const off=Math.max(90,Math.min(130,Math.round(parseFloat($("uvOff").value)*10)||118));
+  const on =Math.max(90,Math.min(140,Math.round(parseFloat($("uvOn").value)*10)||123));
+  const bt=$("bootTest").checked?1:0;
+  write("syscfg",Uint8Array.of(off,on,bt,curVGain&255,(curVGain>>8)&255));
+}
+$("sysSave").onclick=sendSyscfg;
+$("btnameSave").onclick=async()=>{ const n=($("btname").value||"").trim()||"FW-Frontdisplay"; await write("btname",enc.encode(n)); $("sysStatus").textContent="Name gespeichert – wird nach Neustart aktiv."; };
+$("pinSave").onclick=async()=>{ const on=$("pinOn").checked?1:0; const raw=($("pinVal").value||"").trim(); let payload;
+  if(raw!==""){ const v=Math.max(0,Math.min(999999,parseInt(raw,10)||0)); payload=Uint8Array.of(on, v&255,(v>>8)&255,(v>>16)&255,(v>>>24)&255); }
+  else { payload=Uint8Array.of(on); }
+  await write("blepin",payload); $("pinVal").value=""; $("sysStatus").textContent="PIN-Einstellung gespeichert – wird nach Neustart aktiv."; };
+$("calBtn").onclick=()=>{
+  const actual=parseFloat($("calV").value);
+  if(actual>0 && lastVbat>0){ curVGain=Math.max(500,Math.min(2000,Math.round(curVGain*actual/lastVbat))); sendSyscfg(); $("calV").value=""; }
+};
+
+
+// ---------- Wartung & Backup ----------
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const hx=a=>Array.isArray(a)?("#"+a.map(x=>(+x).toString(16).padStart(2,"0")).join("")):a;
+$("lampTest").onclick=()=>write("test",Uint8Array.of(1));
+$("symTest").onclick=async()=>{
+  const prev=(lastFullState&&("symbol" in lastFullState))?lastFullState.symbol:0;
+  $("bkHint").textContent="Symbol-Test läuft …";
+  for(let i=1;i<=5;i++){ await write("symbol",Uint8Array.of(i)); $("symbol").value=i; await sleep(1600); }
+  await write("symbol",Uint8Array.of(prev)); $("symbol").value=prev;
+  $("bkHint").textContent="Symbol-Test fertig.";
+};
+$("bkExport").onclick=()=>{
+  if(!lastFullState){ $("bkHint").textContent="Noch keine Daten – zuerst verbinden."; return; }
+  const json=JSON.stringify(lastFullState,null,2);
+  $("bkText").value=json;
+  const blob=new Blob([json],{type:"application/json"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download="frontdisplay-backup.json"; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  $("bkHint").textContent="Backup exportiert.";
+};
+$("bkFile").onchange=e=>{ const f=e.target.files[0]; if(!f)return;
+  const r=new FileReader(); r.onload=()=>{ $("bkText").value=r.result; $("bkHint").textContent="Datei geladen – jetzt „Importieren"."; }; r.readAsText(f); };
+$("bkImport").onclick=async()=>{
+  let st; try{ st=JSON.parse($("bkText").value); }catch(_){ $("bkHint").textContent="Kein gültiges JSON."; return; }
+  if(!chars.text){ $("bkHint").textContent="Erst mit dem Gerät verbinden."; return; }
+  await applyFullState(st); $("bkHint").textContent="Einstellungen importiert.";
+};
+async function applyFullState(st){
+  if("text" in st){ await write("text",enc.encode(st.text||"")); $("text").value=st.text||""; }
+  if("textMode" in st){ await write("textmode",Uint8Array.of(st.textMode)); $("textmode").value=st.textMode; }
+  if("animMode" in st){ await write("animmode",Uint8Array.of(st.animMode)); $("animmode").value=st.animMode; }
+  if("symbol" in st){ await write("symbol",Uint8Array.of(st.symbol)); $("symbol").value=st.symbol; }
+  if("flashPat" in st){ await write("flashpat",Uint8Array.of(st.flashPat)); $("flashpat").value=st.flashPat; }
+  if("mirror" in st){ await write("mirror",Uint8Array.of(st.mirror)); $("mirror").value=st.mirror; }
+  if("bright" in st){ await write("bright",Uint8Array.of(st.bright)); $("bright").value=st.bright; $("brVal").textContent=st.bright; }
+  if("minDim" in st){ await write("mindim",Uint8Array.of(st.minDim)); $("mindim").value=st.minDim; $("mdVal").textContent=st.minDim; }
+  if("autoDim" in st){ await write("autodim",Uint8Array.of(st.autoDim?1:0)); $("autodim").checked=!!st.autoDim; }
+  if("buzzer" in st){ await write("buzzer",Uint8Array.of(st.buzzer?1:0)); $("buzzer").checked=!!st.buzzer; }
+  if("wordMs" in st){ await write("wordms",u16(st.wordMs)); $("wordms").value=st.wordMs; $("wmVal").textContent=st.wordMs; }
+  if("scrollMs" in st){ await write("scrollms",u16(st.scrollMs)); $("scrollms").value=st.scrollMs; $("smVal").textContent=st.scrollMs; }
+  if("animTakt" in st){ await write("animtakt",u16(st.animTakt)); $("animtakt").value=st.animTakt; $("atVal").textContent=st.animTakt; }
+  if("animRep" in st){ await write("animrep",Uint8Array.of(st.animRep)); $("animrep").value=st.animRep; $("arVal").textContent=st.animRep; }
+  if(st.tcolor){ await write("tcolor",rgb(hx(st.tcolor))); $("tcolor").value=hx(st.tcolor); }
+  if(st.acolor){ await write("acolor",rgb(hx(st.acolor))); $("acolor").value=hx(st.acolor); }
+  if(st.wcolor){ await write("wigcolor",rgb(hx(st.wcolor))); $("wcolor").value=hx(st.wcolor); }
+  const off=("uvOff" in st)?st.uvOff:118, on=("uvOn" in st)?st.uvOn:123, bt=("bootTest" in st)?(st.bootTest?1:0):1;
+  if("vGain" in st) curVGain=st.vGain;
+  await write("syscfg",Uint8Array.of(off,on,bt,curVGain&255,(curVGain>>8)&255));
+  if("uvOff" in st) $("uvOff").value=(off/10).toFixed(1);
+  if("uvOn" in st) $("uvOn").value=(on/10).toFixed(1);
+  if("bootTest" in st) $("bootTest").checked=!!st.bootTest;
+}
+
+load(); save(); render();
+</script>
+</body>
+</html>
