@@ -109,8 +109,7 @@
       <label style="display:flex;align-items:center;gap:8px"><input id="buzzer" type="checkbox" checked style="width:auto"> Akustische Rückmeldung (Piezo)</label>
       <label>Signalton: <span id="bzfVal">4000</span> Hz</label>
       <input id="bzfreq" type="range" min="2000" max="5000" step="50" value="4000">
-      <label>Lautstärke</label>
-      <select id="bzvol"><option value="2">Laut</option><option value="1">Mittel</option><option value="0">Leise</option></select>
+      <p style="margin:4px 0 0;color:#778;font-size:12px">Wird beim Loslassen übernommen; das Display gibt dann einen kurzen Testton.</p>
     </div>
 
     <div class="card">
@@ -171,7 +170,7 @@
 const SVC="f0a00000-1234-4a3c-8c00-aabbccddeeff";
 const U={text:"f0a00001",textmode:"f0a00002",animmode:"f0a00003",bright:"f0a00004",tcolor:"f0a00005",
          scrollms:"f0a00006",wordms:"f0a00007",animtakt:"f0a00008",flashpat:"f0a00009",animrep:"f0a0000a",
-         autodim:"f0a0000b",power:"f0a0000c",acolor:"f0a0000d",wigcolor:"f0a0000e",mirror:"f0a0000f",buzzer:"f0a00010",mindim:"f0a00011",preset:"f0a00012",state:"f0a00013",wifi:"f0a00014",symbol:"f0a00015",syscfg:"f0a00016",test:"f0a00017",btname:"f0a00018",blepin:"f0a00019",stled:"f0a0001a",buzcfg:"f0a0001b"};
+         autodim:"f0a0000b",power:"f0a0000c",acolor:"f0a0000d",wigcolor:"f0a0000e",mirror:"f0a0000f",buzzer:"f0a00010",mindim:"f0a00011",preset:"f0a00012",state:"f0a00013",wifi:"f0a00014",symbol:"f0a00015",syscfg:"f0a00016",test:"f0a00017",btname:"f0a00018",blepin:"f0a00019",stled:"f0a0001a",buzfreq:"f0a0001b"};
 const uuid=s=>`${s}-1234-4a3c-8c00-aabbccddeeff`;
 let chars={};
 const $=id=>document.getElementById(id);
@@ -204,7 +203,7 @@ $("connect").onclick=async()=>{
       try{ const bn=new TextDecoder().decode(await chars.btname.readValue()); if(bn) $("btname").value=bn; }catch(_){}
       try{ const d=await chars.blepin.readValue(); $("pinOn").checked = d.byteLength>0 && d.getUint8(0)===1; }catch(_){}
       try{ const d=await chars.stled.readValue(); if(d.byteLength>=2){ $("stled").value=d.getUint8(0); $("stVal").textContent=d.getUint8(0); $("stdim").checked=d.getUint8(1)===1; } }catch(_){}
-      try{ const d=await chars.buzcfg.readValue(); if(d.byteLength>=3){ const f=d.getUint8(0)|(d.getUint8(1)<<8); $("bzfreq").value=f; $("bzfVal").textContent=f; $("bzvol").value=String(d.getUint8(2)); } }catch(_){}
+      try{ const d=await chars.buzfreq.readValue(); if(d.byteLength>=2){ const f=d.getUint8(0)|(d.getUint8(1)<<8); $("bzfreq").value=f; $("bzfVal").textContent=f; } }catch(_){}
     }catch(_){}
   }catch(e){setState(false,"Fehler: "+e.message);}
 };
@@ -234,9 +233,8 @@ $("buzzer").onchange=e=>write("buzzer",Uint8Array.of(e.target.checked?1:0));
 function writeStled(){ write("stled",Uint8Array.of((+$("stled").value)&255, $("stdim").checked?1:0)); }
 $("stdim").onchange=()=>writeStled();
 $("stled").oninput=e=>{ $("stVal").textContent=e.target.value; writeStled(); };
-function writeBuz(){ const f=+$("bzfreq").value; write("buzcfg",Uint8Array.of(f&255,(f>>8)&255,+$("bzvol").value)); }
-$("bzfreq").oninput=e=>{ $("bzfVal").textContent=e.target.value; writeBuz(); };
-$("bzvol").onchange=()=>writeBuz();
+$("bzfreq").oninput=e=>{ $("bzfVal").textContent=e.target.value; };
+$("bzfreq").onchange=e=>{ const f=+e.target.value; write("buzfreq",Uint8Array.of(f&255,(f>>8)&255)); };
 
 // ---------- Presets ----------
 const DEFAULTS=[
