@@ -112,7 +112,7 @@
         <input type="text" id="btname" maxlength="19" placeholder="FW-Frontdisplay" style="flex:1">
         <button class="btn sec" id="btnameSave" style="white-space:nowrap">Speichern</button>
       </div>
-      <p style="margin:4px 0 10px;color:#778;font-size:12px">Eindeutiger Name fürs Koppeln, z. B. „FW-Frontdisplay-3A7C". Änderung wird nach einem Neustart aktiv.</p>
+      <p style="margin:4px 0 10px;color:#778;font-size:12px">Eindeutiger Name fürs Koppeln, z. B. „FW-Frontdisplay-3A7C“. Änderung wird nach einem Neustart aktiv.</p>
       <hr style="border:none;border-top:1px solid #2a2d36;margin:12px 0">
       <label style="display:flex;align-items:center;gap:8px"><input id="pinOn" type="checkbox" style="width:auto"> Kopplung mit PIN schützen</label>
       <div style="display:flex;gap:8px;margin-top:6px">
@@ -175,9 +175,9 @@ function setState(ok,t){$("dot").className="dot"+(ok?" on":"");$("state").textCo
 const write=async(k,d)=>{ if(chars[k]) await chars[k].writeValue(d); };
 
 $("connect").onclick=async()=>{
-  if(!navigator.bluetooth){ setState(false,"Web-Bluetooth nicht verfügbar – auf dem iPhone die App „Bluefy" nutzen (Safari/Chrome/Firefox für iOS können es nicht)."); return; }
+  if(!navigator.bluetooth){ setState(false,"Web-Bluetooth nicht verfügbar – auf dem iPhone die App „Bluefy“ nutzen (Safari/Chrome/Firefox für iOS können es nicht)."); return; }
   try{
-    setState(false,"Geräteauswahl offen – „FW-Frontdisplay-…" antippen");
+    setState(false,"Geräteauswahl offen – „FW-Frontdisplay-…“ antippen");
     const dev=await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:[SVC]});
     setState(false,"verbinde…");
     const s=await (await dev.gatt.connect()).getPrimaryService(SVC);
@@ -355,7 +355,7 @@ $("bkExport").onclick=()=>{
   $("bkHint").textContent="Backup exportiert.";
 };
 $("bkFile").onchange=e=>{ const f=e.target.files[0]; if(!f)return;
-  const r=new FileReader(); r.onload=()=>{ $("bkText").value=r.result; $("bkHint").textContent="Datei geladen – jetzt „Importieren"."; }; r.readAsText(f); };
+  const r=new FileReader(); r.onload=()=>{ $("bkText").value=r.result; $("bkHint").textContent="Datei geladen – jetzt „Importieren“."; }; r.readAsText(f); };
 $("bkImport").onclick=async()=>{
   let st; try{ st=JSON.parse($("bkText").value); }catch(_){ $("bkHint").textContent="Kein gültiges JSON."; return; }
   if(!chars.text){ $("bkHint").textContent="Erst mit dem Gerät verbinden."; return; }
