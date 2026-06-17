@@ -175,9 +175,10 @@ function setState(ok,t){$("dot").className="dot"+(ok?" on":"");$("state").textCo
 const write=async(k,d)=>{ if(chars[k]) await chars[k].writeValue(d); };
 
 $("connect").onclick=async()=>{
-  if(!navigator.bluetooth){ setState(false,"Web-Bluetooth nicht verfügbar – bitte Chrome/Edge (Android oder Desktop) nutzen. iOS/Safari/Firefox unterstützen es nicht."); return; }
+  if(!navigator.bluetooth){ setState(false,"Web-Bluetooth nicht verfügbar – auf dem iPhone die App „Bluefy" nutzen (Safari/Chrome/Firefox für iOS können es nicht)."); return; }
   try{
-    const dev=await navigator.bluetooth.requestDevice({filters:[{services:[SVC]},{namePrefix:"FW-Frontdisplay"}],optionalServices:[SVC]});
+    setState(false,"Geräteauswahl offen – „FW-Frontdisplay-…" antippen");
+    const dev=await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:[SVC]});
     setState(false,"verbinde…");
     const s=await (await dev.gatt.connect()).getPrimaryService(SVC);
     for(const k in U){ try{ chars[k]=await s.getCharacteristic(uuid(U[k])); }catch(_){ /* aeltere Firmware: Characteristic fehlt evtl. */ } }
