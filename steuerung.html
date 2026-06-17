@@ -181,7 +181,10 @@ $("connect").onclick=async()=>{
     const dev=await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:[SVC]});
     setState(false,"verbinde…");
     const s=await (await dev.gatt.connect()).getPrimaryService(SVC);
-    for(const k in U){ try{ chars[k]=await s.getCharacteristic(uuid(U[k])); }catch(_){ /* aeltere Firmware: Characteristic fehlt evtl. */ } }
+    setState(false,"lese Charakteristiken…");
+    const all=await s.getCharacteristics();                      // alle auf einmal (1 Abfrage statt ~25)
+    const byU={}; for(const c of all) byU[c.uuid.toLowerCase()]=c;
+    for(const k in U){ const cu=uuid(U[k]).toLowerCase(); if(byU[cu]) chars[k]=byU[cu]; }
     dev.addEventListener("gattserverdisconnected",()=>setState(false,"getrennt"));
     setState(true,"verbunden: "+(dev.name||"Display"));
     try{
