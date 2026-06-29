@@ -163,6 +163,10 @@
       </div>
       <textarea id="bkText" placeholder="Hier erscheint das Backup beim Export – oder JSON zum Import einfügen." style="width:100%;height:84px;margin-top:8px;font-family:monospace;font-size:12px"></textarea>
       <div class="hint" id="bkHint"></div>
+      <hr style="border:none;border-top:1px solid #2a2d36;margin:12px 0">
+      <label style="color:#e66">Werkseinstellungen</label>
+      <p style="margin:4px 0 8px;color:#778;font-size:12px">Setzt alle Einstellungen und Presets auf Auslieferungszustand zurück. Das Gerät startet danach neu und trennt die Verbindung.</p>
+      <button class="btn" id="facReset" style="background:#7a2230;border-color:#9a2a3a">⚠ Werkseinstellungen zurücksetzen</button>
     </div>
   </div>
 
@@ -170,7 +174,7 @@
 const SVC="f0a00000-1234-4a3c-8c00-aabbccddeeff";
 const U={text:"f0a00001",textmode:"f0a00002",animmode:"f0a00003",bright:"f0a00004",tcolor:"f0a00005",
          scrollms:"f0a00006",wordms:"f0a00007",animtakt:"f0a00008",flashpat:"f0a00009",animrep:"f0a0000a",
-         autodim:"f0a0000b",power:"f0a0000c",acolor:"f0a0000d",wigcolor:"f0a0000e",mirror:"f0a0000f",buzzer:"f0a00010",mindim:"f0a00011",preset:"f0a00012",state:"f0a00013",wifi:"f0a00014",symbol:"f0a00015",syscfg:"f0a00016",test:"f0a00017",btname:"f0a00018",blepin:"f0a00019",stled:"f0a0001a",buzfreq:"f0a0001b"};
+         autodim:"f0a0000b",power:"f0a0000c",acolor:"f0a0000d",wigcolor:"f0a0000e",mirror:"f0a0000f",buzzer:"f0a00010",mindim:"f0a00011",preset:"f0a00012",state:"f0a00013",wifi:"f0a00014",symbol:"f0a00015",syscfg:"f0a00016",test:"f0a00017",btname:"f0a00018",blepin:"f0a00019",stled:"f0a0001a",buzfreq:"f0a0001b",reset:"f0a0001c"};
 const uuid=s=>`${s}-1234-4a3c-8c00-aabbccddeeff`;
 let chars={};
 const $=id=>document.getElementById(id);
@@ -355,6 +359,11 @@ $("calBtn").onclick=()=>{
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const hx=a=>Array.isArray(a)?("#"+a.map(x=>(+x).toString(16).padStart(2,"0")).join("")):a;
 $("lampTest").onclick=()=>write("test",Uint8Array.of(1));
+$("facReset").onclick=async()=>{
+  if(!confirm("Wirklich ALLE Einstellungen und Presets auf Werkszustand zurücksetzen? Das Gerät startet danach neu.")) return;
+  try{ await write("reset",new TextEncoder().encode("RST!")); $("bkHint").textContent="Zurückgesetzt – Gerät startet neu …"; }
+  catch(e){ $("bkHint").textContent="Fehler beim Zurücksetzen: "+e; }
+};
 $("symTest").onclick=async()=>{
   const prev=(lastFullState&&("symbol" in lastFullState))?lastFullState.symbol:0;
   $("bkHint").textContent="Symbol-Test läuft …";
