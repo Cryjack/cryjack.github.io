@@ -130,12 +130,19 @@
       <p class="hint">Weicher Übergang zwischen Min (dunkel) und Max (hell) nach Umgebungslicht.</p>
     </div>
     <div class="card">
-      <h2>Status-LED &amp; Ton</h2>
+      <h2>Status-LED</h2>
       <label style="display:flex;align-items:center;gap:8px"><input id="stdim" type="checkbox" checked style="width:auto"> Status-LED mitdimmen</label>
       <label>Status-LED Helligkeit: <span id="stVal">100</span>%</label>
       <input id="stled" type="range" min="0" max="100" value="100">
-      <label style="display:flex;align-items:center;gap:8px;margin-top:6px"><input id="buzzer" type="checkbox" checked style="width:auto"> Akustische Rückmeldung (Piezo)</label>
-      <label>Signalton: <span id="bzfVal">4000</span> Hz</label>
+    </div>
+    <div class="card">
+      <h2>Signaltöne</h2>
+      <label style="display:flex;align-items:center;gap:8px"><input id="buzzConn" type="checkbox" checked style="width:auto"> Ton bei Verbindung (BLE/WLAN)</label>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:6px"><input id="buzzUV" type="checkbox" checked style="width:auto"> Ton bei Unterspannung/Übertemperatur</label>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:6px"><input id="buzzPreset" type="checkbox" checked style="width:auto"> Ton bei Preset-Wechsel</label>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:6px"><input id="buzzAnim" type="checkbox" checked style="width:auto"> Ton am Ende eines Animationsdurchlaufs</label>
+      <div class="hint">Ein- und Ausschalttöne bleiben immer aktiv.</div>
+      <label style="margin-top:6px">Signalton-Höhe: <span id="bzfVal">4000</span> Hz</label>
       <input id="bzfreq" type="range" min="2000" max="5000" step="50" value="4000">
     </div>
     <div class="card">
@@ -188,11 +195,12 @@
       <label style="display:flex;align-items:center;gap:8px"><input id="wifi" type="checkbox" style="width:auto"> WLAN/OTA aktiv &nbsp;<span style="color:#778">(am Gerät: langer Tastendruck)</span></label>
     </div>
     <div class="card needsBle">
-      <h2>Spannung &amp; Selbsttest</h2>
+      <h2>Spannung, Temperatur &amp; Selbsttest</h2>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         <div><span style="font-size:12px;color:#778">Abschalten unter (V)</span><input id="uvOff" type="number" step="0.1" min="9" max="13" value="11.8"></div>
         <div><span style="font-size:12px;color:#778">Wieder frei ab (V)</span><input id="uvOn" type="number" step="0.1" min="9" max="14" value="12.3"></div>
       </div>
+      <div style="margin-top:8px"><span style="font-size:12px;color:#778">Not-Abschaltung über (°C)</span><input id="tempMax" type="number" step="1" min="50" max="110" value="80"></div>
       <label style="display:flex;align-items:center;gap:8px;margin-top:8px"><input id="bootTest" type="checkbox" checked style="width:auto"> Selbsttest beim Einschalten (LED-Durchlauf)</label>
       <div class="prow" style="align-items:flex-end;margin-top:8px">
         <div style="flex:1"><span style="font-size:12px;color:#778">Kalibrieren: gemessene Akkuspannung (V)</span><input id="calV" type="number" step="0.1" placeholder="z. B. 12.6"></div>
@@ -314,7 +322,8 @@ $("bright").oninput=e=>{$("brVal").textContent=e.target.value;write("bright",Uin
 $("autodim").onchange=e=>write("autodim",Uint8Array.of(e.target.checked?1:0));
 $("mindim").oninput=e=>{$("mdVal").textContent=e.target.value;write("mindim",Uint8Array.of(p2r(+e.target.value)));};
 $("mirror").onchange=e=>write("mirror",Uint8Array.of(+e.target.value));
-$("buzzer").onchange=e=>write("buzzer",Uint8Array.of(e.target.checked?1:0));
+const writeBuzz=()=>write("buzzer",Uint8Array.of($("buzzAnim").checked?1:0,$("buzzConn").checked?1:0,$("buzzUV").checked?1:0,$("buzzPreset").checked?1:0));
+["buzzAnim","buzzConn","buzzUV","buzzPreset"].forEach(id=>$(id).onchange=writeBuzz);
 function writeStled(){ write("stled",Uint8Array.of(p2r(+$("stled").value)&255, $("stdim").checked?1:0)); }
 $("stdim").onchange=()=>writeStled();
 $("stled").oninput=e=>{ $("stVal").textContent=e.target.value; writeStled(); };
@@ -369,7 +378,7 @@ function render(){ const c=$("presets"); c.innerHTML="";
 $("addPreset").onclick=()=>{const n=prompt("Name des neuen Presets:");if(!n)return;presets.push({name:n,...capture()});save();render();};
 $("resetPresets").onclick=()=>{if(confirm("Presets auf Standard zurücksetzen?")){presets=DEFAULTS.slice();save();render();}};
 // ---------- Geraete-Presets / System / Readback ----------
-const DEVN=4;
+const DEVN=6;
 function renderDev(){ const c=$("devpresets"); if(!c) return; c.innerHTML="";
   for(let i=0;i<DEVN;i++){
     const row=document.createElement("div"); row.className="prow";
@@ -395,11 +404,11 @@ function applyState(st, full){
   updateFooter(st);
   document.querySelectorAll("#devchips .chip, #devpresets .name").forEach(x=>x.classList.toggle("on",+x.dataset.i===st.preset));
   const foc=document.activeElement;
-  const sv=(id,v)=>{ const el=$(id); if(el&&el!==foc&&el.value!=v) el.value=v; };
-  const sl=(id,lid,v)=>{ const el=$(id); if(el&&el!==foc){ if(el.value!=v)el.value=v; const L=$(lid); if(L)L.textContent=v; } };
+  const presetChanged=("preset" in st)&&st.preset!==lastPreset; if("preset" in st) lastPreset=st.preset;
+  const sv=(id,v)=>{ const el=$(id); if(el&&el!==foc&&(presetChanged||el.value!=v)) el.value=v; };
+  const sl=(id,lid,v)=>{ const el=$(id); if(el&&el!==foc){ if(presetChanged||el.value!=v)el.value=v; const L=$(lid); if(L)L.textContent=v; } };
   const sc=(id,val)=>{ const el=$(id); if(el&&el!==foc) el.checked=val; };
   // Textfeld nur bei echter Geraete-Aenderung uebernehmen (ungesendeten Entwurf nicht ueberschreiben)
-  const presetChanged=("preset" in st)&&st.preset!==lastPreset; if("preset" in st) lastPreset=st.preset;
   if("text" in st && (presetChanged || st.text!==lastDevText)){ lastDevText=st.text; const el=$("text"); if(el&&el!==foc) el.value=st.text; }
   if("textMode" in st) sv("textmode",st.textMode);
   if("symbol" in st)   sv("symbol",st.symbol);
@@ -409,7 +418,7 @@ function applyState(st, full){
   if("bright" in st)   sl("bright","brVal",r2p(st.bright));
   if("minDim" in st)   sl("mindim","mdVal",r2p(st.minDim));
   if("autoDim" in st)  sc("autodim",!!st.autoDim);
-  if("buzzer" in st)   sc("buzzer",!!st.buzzer);
+  if("buzzA" in st) sc("buzzAnim",!!st.buzzA); if("buzzC" in st) sc("buzzConn",!!st.buzzC); if("buzzU" in st) sc("buzzUV",!!st.buzzU); if("buzzP" in st) sc("buzzPreset",!!st.buzzP);
   if("wifi" in st)     sc("wifi",!!st.wifi);
   if("oledAuto" in st) sc("oledauto",!!st.oledAuto);
   if("oledBright" in st) sl("oledbright","olbVal",r2p(st.oledBright));
@@ -426,6 +435,7 @@ function applyState(st, full){
   if("uvOff" in st && $("uvOff")!==foc) $("uvOff").value=(st.uvOff/10).toFixed(1);
   if("uvOn" in st && $("uvOn")!==foc) $("uvOn").value=(st.uvOn/10).toFixed(1);
   if("bootTest" in st && $("bootTest")!==foc) $("bootTest").checked=!!st.bootTest;
+  if("tempMax" in st && $("tempMax")!==foc) $("tempMax").value=st.tempMax;
 }
 renderDev(); renderDevChips();
 // ---------- Spannung / System ----------
@@ -434,7 +444,8 @@ function sendSyscfg(){
   const off=Math.max(90,Math.min(130,Math.round(parseFloat($("uvOff").value)*10)||118));
   const on =Math.max(90,Math.min(140,Math.round(parseFloat($("uvOn").value)*10)||123));
   const bt=$("bootTest").checked?1:0;
-  write("syscfg",Uint8Array.of(off,on,bt,curVGain&255,(curVGain>>8)&255));
+  const tmx=Math.max(50,Math.min(110,Math.round(parseFloat($("tempMax").value))||80));
+  write("syscfg",Uint8Array.of(off,on,bt,curVGain&255,(curVGain>>8)&255,tmx));
 }
 $("sysSave").onclick=sendSyscfg;
 $("btnameSave").onclick=async()=>{ const n=($("btname").value||"").trim()||"FW-Frontdisplay"; await write("btname",enc.encode(n)); $("sysStatus").textContent="Name gespeichert – wird nach Neustart aktiv."; };
@@ -444,7 +455,7 @@ $("pinSave").onclick=async()=>{ const on=$("pinOn").checked?1:0; const raw=($("p
   await write("blepin",payload); $("pinVal").value=""; $("sysStatus").textContent="PIN-Einstellung gespeichert – wird nach Neustart aktiv."; };
 $("calBtn").onclick=()=>{
   const actual=parseFloat($("calV").value);
-  if(actual>0 && lastVbat>0){ curVGain=Math.max(500,Math.min(2000,Math.round(curVGain*actual/lastVbat))); sendSyscfg(); $("calV").value=""; }
+  if(actual>0 && lastVbat>0){ curVGain=Math.max(500,Math.min(2000,Math.round(curVGain*actual/lastVbat))); sendSyscfg(); }
 };
 
 
@@ -490,7 +501,7 @@ async function applyFullState(st){
   if("bright" in st){ await write("bright",Uint8Array.of(st.bright)); const p=r2p(st.bright); $("bright").value=p; $("brVal").textContent=p; }
   if("minDim" in st){ await write("mindim",Uint8Array.of(st.minDim)); const p=r2p(st.minDim); $("mindim").value=p; $("mdVal").textContent=p; }
   if("autoDim" in st){ await write("autodim",Uint8Array.of(st.autoDim?1:0)); $("autodim").checked=!!st.autoDim; }
-  if("buzzer" in st){ await write("buzzer",Uint8Array.of(st.buzzer?1:0)); $("buzzer").checked=!!st.buzzer; }
+  if(("buzzA" in st)||("buzzC" in st)||("buzzS" in st)||("buzzer" in st)){ const f=k=>("buzz"+k in st?st["buzz"+k]:("buzzS" in st?st.buzzS:st.buzzer))?1:0; const bA=("buzzA" in st?st.buzzA:st.buzzer)?1:0, bC=f("C"), bU=f("U"), bP=f("P"); await write("buzzer",Uint8Array.of(bA,bC,bU,bP)); $("buzzAnim").checked=!!bA; $("buzzConn").checked=!!bC; $("buzzUV").checked=!!bU; $("buzzPreset").checked=!!bP; }
   if("wordMs" in st){ await write("wordms",u16(st.wordMs)); $("wordms").value=st.wordMs; $("wmVal").textContent=st.wordMs; }
   if("scrollMs" in st){ await write("scrollms",u16(st.scrollMs)); $("scrollms").value=st.scrollMs; $("smVal").textContent=st.scrollMs; }
   if("animTakt" in st){ await write("animtakt",u16(st.animTakt)); $("animtakt").value=st.animTakt; $("atVal").textContent=st.animTakt; }
@@ -500,7 +511,7 @@ async function applyFullState(st){
   if(st.wcolor){ await write("wigcolor",rgb(hx(st.wcolor))); $("wcolor").value=hx(st.wcolor); }
   const off=("uvOff" in st)?st.uvOff:118, on=("uvOn" in st)?st.uvOn:123, bt=("bootTest" in st)?(st.bootTest?1:0):1;
   if("vGain" in st) curVGain=st.vGain;
-  await write("syscfg",Uint8Array.of(off,on,bt,curVGain&255,(curVGain>>8)&255));
+  await write("syscfg",Uint8Array.of(off,on,bt,curVGain&255,(curVGain>>8)&255,("tempMax" in st)?Math.max(50,Math.min(110,st.tempMax)):80));
   if("uvOff" in st) $("uvOff").value=(off/10).toFixed(1);
   if("uvOn" in st) $("uvOn").value=(on/10).toFixed(1);
   if("bootTest" in st) $("bootTest").checked=!!st.bootTest;
@@ -519,7 +530,7 @@ function updateFooter(st){ const g=(id,v)=>{const e=$(id);if(e)e.textContent=v;}
   g("fTemp",("temp" in st && st.temp>0)?(st.temp+" °C"):"–");
   g("fVbat",("vbat" in st)?((st.vbat/10).toFixed(1).replace(".",",")+" V"):"–");
   g("fBle","✓"); g("fWifi",st.wifi?"AN":"–");
-  const w=$("fWarn"); if(w) w.style.display=st.uvlock?"inline":"none";
+  const w=$("fWarn"); if(w){ if(st.uvlock){w.textContent="⚠ UNTERSPANNUNG";w.style.display="inline";} else if(st.templock){w.textContent="⚠ ÜBERTEMPERATUR";w.style.display="inline";} else w.style.display="none"; }
 }
 function clearFooter(){ ["fPreset","fHell","fLux","fTemp","fVbat","fBle","fWifi"].forEach(id=>{const e=$(id);if(e)e.textContent="–";});
   const w=$("fWarn"); if(w) w.style.display="none"; }
