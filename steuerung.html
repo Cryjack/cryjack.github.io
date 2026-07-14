@@ -258,7 +258,7 @@
 const SVC="f0a00000-1234-4a3c-8c00-aabbccddeeff";
 const U={text:"f0a00001",textmode:"f0a00002",animmode:"f0a00003",bright:"f0a00004",tcolor:"f0a00005",
          scrollms:"f0a00006",wordms:"f0a00007",animtakt:"f0a00008",flashpat:"f0a00009",animrep:"f0a0000a",
-         autodim:"f0a0000b",power:"f0a0000c",acolor:"f0a0000d",wigcolor:"f0a0000e",mirror:"f0a0000f",buzzer:"f0a00010",mindim:"f0a00011",preset:"f0a00012",state:"f0a00013",wifi:"f0a00014",symbol:"f0a00015",syscfg:"f0a00016",test:"f0a00017",btname:"f0a00018",blepin:"f0a00019",stled:"f0a0001a",buzfreq:"f0a0001b",reset:"f0a0001c",oledcfg:"f0a0001d"};
+         autodim:"f0a0000b",power:"f0a0000c",acolor:"f0a0000d",wigcolor:"f0a0000e",mirror:"f0a0000f",buzzer:"f0a00010",mindim:"f0a00011",preset:"f0a00012",state:"f0a00013",wifi:"f0a00014",symbol:"f0a00015",syscfg:"f0a00016",test:"f0a00017",btname:"f0a00018",blepin:"f0a00019",stled:"f0a0001a",buzfreq:"f0a0001b",reset:"f0a0001c",oledcfg:"f0a0001d",config:"f0a0001e"};
 const uuid=s=>`${s}-1234-4a3c-8c00-aabbccddeeff`;
 let chars={}; let bleDev=null;
 const p2r=p=>Math.round(p*255/100), r2p=r=>Math.round(r*100/255);  // Prozent <-> Roh 0..255
@@ -290,9 +290,14 @@ $("connect").onclick=async()=>{
     try{
       await chars.state.startNotifications();
       chars.state.addEventListener("characteristicvaluechanged",e=>{
-        try{ applyState(JSON.parse(new TextDecoder().decode(e.target.value)),false); }catch(_){}
+        try{ const st=JSON.parse(new TextDecoder().decode(e.target.value)); applyState(st,false); updateFooter(st); }catch(_){}
       });
-      applyState(JSON.parse(new TextDecoder().decode(await chars.state.readValue())),true);
+      if(chars.config){ await chars.config.startNotifications();
+        chars.config.addEventListener("characteristicvaluechanged",e=>{
+          try{ applyState(JSON.parse(new TextDecoder().decode(e.target.value)),false); }catch(_){}
+        }); }
+      { const st=JSON.parse(new TextDecoder().decode(await chars.state.readValue())); applyState(st,true); updateFooter(st); }
+      if(chars.config){ applyState(JSON.parse(new TextDecoder().decode(await chars.config.readValue())),true); }
       try{ const bn=new TextDecoder().decode(await chars.btname.readValue()); if(bn) $("btname").value=bn; }catch(_){}
       try{ const d=await chars.blepin.readValue(); $("pinOn").checked = d.byteLength>0 && d.getUint8(0)===1; }catch(_){}
       try{ const d=await chars.stled.readValue(); if(d.byteLength>=2){ $("stled").value=d.getUint8(0); $("stVal").textContent=d.getUint8(0); $("stdim").checked=d.getUint8(1)===1; } }catch(_){}
@@ -397,14 +402,13 @@ $("wifi").onchange=e=>write("wifi",Uint8Array.of(e.target.checked?1:0));
 const toHex=a=>"#"+a.map(x=>(+x).toString(16).padStart(2,"0")).join("");
 let lastDevText=null, lastPreset=null;
 function applyState(st, full){
-  lastFullState = st;
+  lastFullState = Object.assign(lastFullState||{}, st);
   if("power" in st){ powerOn=!!st.power; $("power").textContent="Panel: "+(powerOn?"AN":"AUS"); $("power").classList.toggle("on",powerOn); }
   if("vbat" in st) lastVbat=st.vbat/10;
   if("vGain" in st) curVGain=st.vGain;
-  updateFooter(st);
   document.querySelectorAll("#devchips .chip, #devpresets .name").forEach(x=>x.classList.toggle("on",+x.dataset.i===st.preset));
   const foc=document.activeElement;
-  const presetChanged=("preset" in st)&&st.preset!==lastPreset; if("preset" in st) lastPreset=st.preset;
+  const isCfg=("text" in st); const presetChanged=isCfg&&("preset" in st)&&st.preset!==lastPreset; if(isCfg&&"preset" in st) lastPreset=st.preset;
   const sv=(id,v)=>{ const el=$(id); if(el&&el!==foc&&(presetChanged||el.value!=v)) el.value=v; };
   const sl=(id,lid,v)=>{ const el=$(id); if(el&&el!==foc){ if(presetChanged||el.value!=v)el.value=v; const L=$(lid); if(L)L.textContent=v; } };
   const sc=(id,val)=>{ const el=$(id); if(el&&el!==foc) el.checked=val; };
