@@ -76,7 +76,7 @@
     <div class="card needsBle">
       <h2>Geräte-Preset</h2>
       <div class="chips" id="devchips"></div>
-      <div class="hint">Schneller Wechsel der 4 Geräte-Speicher (auch per Doppelklick am Taster). Slots frei belegbar.</div>
+      <div class="hint">Schneller Wechsel der 6 Geräte-Speicher (auch per Doppelklick am Taster). Slots frei belegbar.</div>
     </div>
 
     <div class="card">
@@ -165,7 +165,7 @@
     <div class="card needsBle">
       <h2>Geräte-Presets speichern</h2>
       <div id="devpresets"></div>
-      <p class="hint">Speichert die aktuellen Geräte-Einstellungen fest auf einen Slot (P1–P4). Geladen wird oben im Tab „Anzeige“.</p>
+      <p class="hint">Speichert die aktuellen Geräte-Einstellungen fest auf einen Slot (P1–P6). Geladen wird oben im Tab „Anzeige“.</p>
     </div>
     <div class="card">
       <h2>Browser-Vorlagen</h2>
@@ -413,22 +413,22 @@ function applyState(st, full){
   if("textMode" in st) sv("textmode",st.textMode);
   if("symbol" in st)   sv("symbol",st.symbol);
   if("animMode" in st) sv("animmode",st.animMode);
-  if("flashPat" in st) sv("flashpat",st.flashPat);
+  if("fP" in st) sv("flashpat",st.fP);
   if("mirror" in st)   sv("mirror",st.mirror);
   if("bright" in st)   sl("bright","brVal",r2p(st.bright));
   if("minDim" in st)   sl("mindim","mdVal",r2p(st.minDim));
   if("autoDim" in st)  sc("autodim",!!st.autoDim);
   if("buzzA" in st) sc("buzzAnim",!!st.buzzA); if("buzzC" in st) sc("buzzConn",!!st.buzzC); if("buzzU" in st) sc("buzzUV",!!st.buzzU); if("buzzP" in st) sc("buzzPreset",!!st.buzzP);
   if("wifi" in st)     sc("wifi",!!st.wifi);
-  if("oledAuto" in st) sc("oledauto",!!st.oledAuto);
-  if("oledBright" in st) sl("oledbright","olbVal",r2p(st.oledBright));
-  if("oledMin" in st)  sl("oledmin","olmVal",r2p(st.oledMin));
-  if("oledDim" in st)  sv("oleddim",st.oledDim);
-  if("oledOff" in st)  sv("oledoff",st.oledOff);
-  if("wordMs" in st)   sl("wordms","wmVal",st.wordMs);
-  if("scrollMs" in st) sl("scrollms","smVal",st.scrollMs);
-  if("animTakt" in st) sl("animtakt","atVal",st.animTakt);
-  if("animRep" in st)  sl("animrep","arVal",st.animRep);
+  if("oA" in st) sc("oledauto",!!st.oA);
+  if("oB" in st) sl("oledbright","olbVal",r2p(st.oB));
+  if("oM" in st)  sl("oledmin","olmVal",r2p(st.oM));
+  if("oD" in st)  sv("oleddim",st.oD);
+  if("oO" in st)  sv("oledoff",st.oO);
+  if("wM" in st)   sl("wordms","wmVal",st.wM);
+  if("sM" in st) sl("scrollms","smVal",st.sM);
+  if("aT" in st) sl("animtakt","atVal",st.aT);
+  if("aR" in st)  sl("animrep","arVal",st.aR);
   if(st.tcolor) sv("tcolor",toHex(st.tcolor));
   if(st.acolor) sv("acolor",toHex(st.acolor));
   if(st.wcolor) sv("wcolor",toHex(st.wcolor));
@@ -496,16 +496,16 @@ async function applyFullState(st){
   if("textMode" in st){ await write("textmode",Uint8Array.of(st.textMode)); $("textmode").value=st.textMode; }
   if("animMode" in st){ await write("animmode",Uint8Array.of(st.animMode)); $("animmode").value=st.animMode; }
   if("symbol" in st){ await write("symbol",Uint8Array.of(st.symbol)); $("symbol").value=st.symbol; }
-  if("flashPat" in st){ await write("flashpat",Uint8Array.of(st.flashPat)); $("flashpat").value=st.flashPat; }
+  if("fP" in st){ await write("flashpat",Uint8Array.of(st.fP)); $("flashpat").value=st.fP; }
   if("mirror" in st){ await write("mirror",Uint8Array.of(st.mirror)); $("mirror").value=st.mirror; }
   if("bright" in st){ await write("bright",Uint8Array.of(st.bright)); const p=r2p(st.bright); $("bright").value=p; $("brVal").textContent=p; }
   if("minDim" in st){ await write("mindim",Uint8Array.of(st.minDim)); const p=r2p(st.minDim); $("mindim").value=p; $("mdVal").textContent=p; }
   if("autoDim" in st){ await write("autodim",Uint8Array.of(st.autoDim?1:0)); $("autodim").checked=!!st.autoDim; }
   if(("buzzA" in st)||("buzzC" in st)||("buzzS" in st)||("buzzer" in st)){ const f=k=>("buzz"+k in st?st["buzz"+k]:("buzzS" in st?st.buzzS:st.buzzer))?1:0; const bA=("buzzA" in st?st.buzzA:st.buzzer)?1:0, bC=f("C"), bU=f("U"), bP=f("P"); await write("buzzer",Uint8Array.of(bA,bC,bU,bP)); $("buzzAnim").checked=!!bA; $("buzzConn").checked=!!bC; $("buzzUV").checked=!!bU; $("buzzPreset").checked=!!bP; }
-  if("wordMs" in st){ await write("wordms",u16(st.wordMs)); $("wordms").value=st.wordMs; $("wmVal").textContent=st.wordMs; }
-  if("scrollMs" in st){ await write("scrollms",u16(st.scrollMs)); $("scrollms").value=st.scrollMs; $("smVal").textContent=st.scrollMs; }
-  if("animTakt" in st){ await write("animtakt",u16(st.animTakt)); $("animtakt").value=st.animTakt; $("atVal").textContent=st.animTakt; }
-  if("animRep" in st){ await write("animrep",Uint8Array.of(st.animRep)); $("animrep").value=st.animRep; $("arVal").textContent=st.animRep; }
+  if("wM" in st){ await write("wordms",u16(st.wM)); $("wordms").value=st.wM; $("wmVal").textContent=st.wM; }
+  if("sM" in st){ await write("scrollms",u16(st.sM)); $("scrollms").value=st.sM; $("smVal").textContent=st.sM; }
+  if("aT" in st){ await write("animtakt",u16(st.aT)); $("animtakt").value=st.aT; $("atVal").textContent=st.aT; }
+  if("aR" in st){ await write("animrep",Uint8Array.of(st.aR)); $("animrep").value=st.aR; $("arVal").textContent=st.aR; }
   if(st.tcolor){ await write("tcolor",rgb(hx(st.tcolor))); $("tcolor").value=hx(st.tcolor); }
   if(st.acolor){ await write("acolor",rgb(hx(st.acolor))); $("acolor").value=hx(st.acolor); }
   if(st.wcolor){ await write("wigcolor",rgb(hx(st.wcolor))); $("wcolor").value=hx(st.wcolor); }
