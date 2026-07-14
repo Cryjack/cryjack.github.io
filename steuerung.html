@@ -386,7 +386,7 @@ function renderDevChips(){ const c=$("devchips"); if(!c) return; c.innerHTML="";
 $("wifi").onchange=e=>write("wifi",Uint8Array.of(e.target.checked?1:0));
 
 const toHex=a=>"#"+a.map(x=>(+x).toString(16).padStart(2,"0")).join("");
-let lastDevText=null;
+let lastDevText=null, lastPreset=null;
 function applyState(st, full){
   lastFullState = st;
   if("power" in st){ powerOn=!!st.power; $("power").textContent="Panel: "+(powerOn?"AN":"AUS"); $("power").classList.toggle("on",powerOn); }
@@ -399,7 +399,8 @@ function applyState(st, full){
   const sl=(id,lid,v)=>{ const el=$(id); if(el&&el!==foc){ if(el.value!=v)el.value=v; const L=$(lid); if(L)L.textContent=v; } };
   const sc=(id,val)=>{ const el=$(id); if(el&&el!==foc) el.checked=val; };
   // Textfeld nur bei echter Geraete-Aenderung uebernehmen (ungesendeten Entwurf nicht ueberschreiben)
-  if("text" in st && st.text!==lastDevText){ lastDevText=st.text; const el=$("text"); if(el&&el!==foc) el.value=st.text; }
+  const presetChanged=("preset" in st)&&st.preset!==lastPreset; if("preset" in st) lastPreset=st.preset;
+  if("text" in st && (presetChanged || st.text!==lastDevText)){ lastDevText=st.text; const el=$("text"); if(el&&el!==foc) el.value=st.text; }
   if("textMode" in st) sv("textmode",st.textMode);
   if("symbol" in st)   sv("symbol",st.symbol);
   if("animMode" in st) sv("animmode",st.animMode);
@@ -422,11 +423,9 @@ function applyState(st, full){
   if(st.tcolor) sv("tcolor",toHex(st.tcolor));
   if(st.acolor) sv("acolor",toHex(st.acolor));
   if(st.wcolor) sv("wcolor",toHex(st.wcolor));
-  if(full){
-    if("uvOff" in st) $("uvOff").value=(st.uvOff/10).toFixed(1);
-    if("uvOn" in st) $("uvOn").value=(st.uvOn/10).toFixed(1);
-    if("bootTest" in st) $("bootTest").checked=!!st.bootTest;
-  }
+  if("uvOff" in st && $("uvOff")!==foc) $("uvOff").value=(st.uvOff/10).toFixed(1);
+  if("uvOn" in st && $("uvOn")!==foc) $("uvOn").value=(st.uvOn/10).toFixed(1);
+  if("bootTest" in st && $("bootTest")!==foc) $("bootTest").checked=!!st.bootTest;
 }
 renderDev(); renderDevChips();
 // ---------- Spannung / System ----------
