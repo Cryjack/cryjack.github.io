@@ -267,6 +267,7 @@
     <span>BLE <b id="fBle">–</b></span>
     <span>WLAN <b id="fWifi">–</b></span>
     <span title="längster Schleifendurchlauf – Werte über ~35 ms können die Laufschrift stocken lassen">Takt <b id="fLoop">–</b></span>
+    <span>Sync <b id="fDiag">–</b></span>
     <span class="warn" id="fWarn" style="display:none">⚠ UNTERSPANNUNG</span>
   </div>
 </footer>
@@ -284,13 +285,13 @@ let lastCS=null, lastSS=null, cfgBusy=false;
 async function syncCfg(st){
   if(cfgBusy) return; cfgBusy=true;
   try{
-    if(("cS" in st) && st.cS!==lastCS && chars.config){
-      lastCS=st.cS; applyState(JSON.parse(new TextDecoder().decode(await chars.config.readValue())),false);
-    }
-    if(("sS" in st) && st.sS!==lastSS && chars.system){
-      lastSS=st.sS; applyState(JSON.parse(new TextDecoder().decode(await chars.system.readValue())),false);
-    }
-  }catch(_){ }finally{ cfgBusy=false; }
+    if(!("cS" in st)){ const d=$("fDiag"); if(d){ d.textContent="alte Firmware (kein cS)"; d.style.color="#ff7043"; } return; }
+    if(!chars.config || !chars.system){ const d=$("fDiag"); if(d){ d.textContent="Kanal fehlt: "+(!chars.config?"config ":"")+(!chars.system?"system":""); d.style.color="#ff7043"; } return; }
+    let n=0;
+    if(st.cS!==lastCS){ lastCS=st.cS; applyState(JSON.parse(new TextDecoder().decode(await chars.config.readValue())),false); n++; }
+    if(st.sS!==lastSS){ lastSS=st.sS; applyState(JSON.parse(new TextDecoder().decode(await chars.system.readValue())),false); n++; }
+    const d=$("fDiag"); if(d){ d.textContent="OK c"+st.cS+"/s"+st.sS+(n?" ↻":""); d.style.color=""; }
+  }catch(e){ const d=$("fDiag"); if(d){ d.textContent="Read-Fehler: "+(e.message||e); d.style.color="#ff7043"; } }finally{ cfgBusy=false; }
 }
 const p2r=p=>Math.round(p*255/100), r2p=r=>Math.round(r*100/255);  // Prozent <-> Roh 0..255
 const $=id=>document.getElementById(id);
@@ -339,10 +340,11 @@ $("connect").onclick=async()=>{
       }
       lastCS=null; lastSS=null;                       // erste Live-Meldung zieht die Zaehler nach
       try{ const bn=new TextDecoder().decode(await chars.btname.readValue()); if(bn) $("btname").value=bn; }catch(_){}
+      { const d=$("fDiag"); if(d){ d.textContent="verbunden"; d.style.color=""; } }
       try{ const d=await chars.blepin.readValue(); $("pinOn").checked = d.byteLength>0 && d.getUint8(0)===1; }catch(_){}
       try{ const d=await chars.stled.readValue(); if(d.byteLength>=2){ const p=r2p(d.getUint8(0)); $("stled").value=p; $("stVal").textContent=p; $("stdim").checked=d.getUint8(1)===1; } }catch(_){}
       try{ const d=await chars.buzfreq.readValue(); if(d.byteLength>=2){ const f=d.getUint8(0)|(d.getUint8(1)<<8); $("bzfreq").value=f; $("bzfVal").textContent=f; } }catch(_){}
-    }catch(_){}
+    }catch(e){ const d=$("fDiag"); if(d){ d.textContent="Init-Fehler: "+(e.message||e); d.style.color="#ff7043"; } }
   }catch(e){setState(false,"Fehler: "+e.message);}
 };
 
@@ -606,7 +608,7 @@ function updateFooter(st){ const g=(id,v)=>{const e=$(id);if(e)e.textContent=v;}
   if("lp" in st){ const e=$("fLoop"); if(e){ e.textContent=st.lp+" ms"; e.style.color=st.lp>35?"#ff7043":""; } }
   const w=$("fWarn"); if(w){ if(st.uvlock){w.textContent="⚠ UNTERSPANNUNG";w.style.display="inline";} else if(st.templock){w.textContent="⚠ ÜBERTEMPERATUR";w.style.display="inline";} else w.style.display="none"; }
 }
-function clearFooter(){ ["fPreset","fHell","fLux","fTemp","fVbat","fBle","fWifi","fLoop"].forEach(id=>{const e=$(id);if(e)e.textContent="–";});
+function clearFooter(){ ["fPreset","fHell","fLux","fTemp","fVbat","fBle","fWifi","fLoop","fDiag"].forEach(id=>{const e=$(id);if(e)e.textContent="–";});
   const w=$("fWarn"); if(w) w.style.display="none"; }
 
 load(); save(); render();
