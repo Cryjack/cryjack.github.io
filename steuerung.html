@@ -34,6 +34,8 @@
   .chips{display:flex;gap:8px}
   .chip{flex:1;padding:12px 0;text-align:center;border-radius:10px;border:1px solid var(--line);background:#12141a;color:var(--txt);font-weight:600;cursor:pointer}
   .chip.on{background:var(--amber);color:#111;border-color:var(--amber)}
+  .chip.off{opacity:.3;pointer-events:none}
+  .prow .name.off{opacity:.45}
   .prow{display:flex;gap:8px;align-items:center;margin-bottom:6px}.prow .name{flex:1;text-align:left}
   .prow .name.on{color:var(--amber);font-weight:700}
   footer{position:fixed;left:0;right:0;bottom:0;z-index:20;background:#12141af2;backdrop-filter:blur(6px);border-top:1px solid var(--line)}
@@ -86,11 +88,6 @@
       <label>Anzeigetext &nbsp;<span style="color:#778">(Wörter mit | trennen)</span></label>
       <input id="text" type="text" maxlength="63" value="FEUER|WEHR|EINSATZ">
       <button class="btn sec needsBle" id="sendText" style="margin-top:8px">Text senden</button>
-      <label>Symbol &nbsp;<span style="color:#778">(läuft im Wechsel mit Text &amp; Animation)</span></label>
-      <select id="symbol">
-        <option value="0">Kein Symbol</option><option value="1">Rettungsgasse bilden</option><option value="2">Achtung</option>
-        <option value="3">Unfall</option><option value="4">Stau</option><option value="5">Sperrung</option><option value="6">Löschfahrzeug</option>
-      </select>
       <label>Textfarbe</label>
       <input id="tcolor" type="color" value="#ff5000">
       <label>Spiegelschrift &nbsp;<span style="color:#778">(für Rückspiegel des Vordermanns)</span></label>
@@ -99,6 +96,18 @@
       <input id="wordms" type="range" min="60" max="2000" step="10" value="450">
       <label>Laufschrift-Tempo (ms/Schritt): <span id="smVal">35</span></label>
       <input id="scrollms" type="range" min="5" max="120" value="35">
+    </div>
+
+    <div class="card">
+      <h2>Symbol</h2>
+      <label>Symbol &nbsp;<span style="color:#778">(läuft im Wechsel mit Text &amp; Animation)</span></label>
+      <select id="symbol">
+        <option value="0">Kein Symbol</option><option value="1">Rettungsgasse bilden</option><option value="2">Achtung</option>
+        <option value="3">Unfall</option><option value="4">Stau</option><option value="5">Sperrung</option><option value="6">Löschfahrzeug</option>
+      </select>
+      <label>Standzeit: <span id="syVal">Automatisch</span></label>
+      <input id="symms" type="range" min="0" max="20000" step="500" value="0">
+      <div class="hint">0 = automatisch (die im Symbol hinterlegten Durchläufe). Sonst läuft das Symbol genau so lange und wechselt dann weiter.</div>
     </div>
 
     <div class="card">
@@ -165,7 +174,7 @@
     <div class="card needsBle">
       <h2>Geräte-Presets speichern</h2>
       <div id="devpresets"></div>
-      <p class="hint">Speichert die aktuellen Geräte-Einstellungen fest auf einen Slot (P1–P6). Geladen wird oben im Tab „Anzeige“.</p>
+      <p class="hint">Speichert die aktuellen Geräte-Einstellungen fest auf einen Slot (P1–P6). Geladen wird oben im Tab „Anzeige“.<br>Das Häkchen gibt einen Slot frei: Nur freigegebene Presets erscheinen oben und werden am Taster durchgeschaltet.</p>
     </div>
     <div class="card">
       <h2>Browser-Vorlagen</h2>
@@ -258,7 +267,7 @@
 const SVC="f0a00000-1234-4a3c-8c00-aabbccddeeff";
 const U={text:"f0a00001",textmode:"f0a00002",animmode:"f0a00003",bright:"f0a00004",tcolor:"f0a00005",
          scrollms:"f0a00006",wordms:"f0a00007",animtakt:"f0a00008",flashpat:"f0a00009",animrep:"f0a0000a",
-         autodim:"f0a0000b",power:"f0a0000c",acolor:"f0a0000d",wigcolor:"f0a0000e",mirror:"f0a0000f",buzzer:"f0a00010",mindim:"f0a00011",preset:"f0a00012",state:"f0a00013",wifi:"f0a00014",symbol:"f0a00015",syscfg:"f0a00016",test:"f0a00017",btname:"f0a00018",blepin:"f0a00019",stled:"f0a0001a",buzfreq:"f0a0001b",reset:"f0a0001c",oledcfg:"f0a0001d",config:"f0a0001e"};
+         autodim:"f0a0000b",power:"f0a0000c",acolor:"f0a0000d",wigcolor:"f0a0000e",mirror:"f0a0000f",buzzer:"f0a00010",mindim:"f0a00011",preset:"f0a00012",state:"f0a00013",wifi:"f0a00014",symbol:"f0a00015",syscfg:"f0a00016",test:"f0a00017",btname:"f0a00018",blepin:"f0a00019",stled:"f0a0001a",buzfreq:"f0a0001b",reset:"f0a0001c",oledcfg:"f0a0001d",config:"f0a0001e",system:"f0a0001f"};
 const uuid=s=>`${s}-1234-4a3c-8c00-aabbccddeeff`;
 let chars={}; let bleDev=null;
 const p2r=p=>Math.round(p*255/100), r2p=r=>Math.round(r*100/255);  // Prozent <-> Roh 0..255
@@ -292,12 +301,18 @@ $("connect").onclick=async()=>{
       chars.state.addEventListener("characteristicvaluechanged",e=>{
         try{ const st=JSON.parse(new TextDecoder().decode(e.target.value)); applyState(st,false); updateFooter(st); }catch(_){}
       });
-      if(chars.config){ await chars.config.startNotifications();
-        chars.config.addEventListener("characteristicvaluechanged",e=>{
+      for(const k of ["config","system"]){                       // Anzeige-Config + System-Config
+        if(!chars[k]) continue;
+        await chars[k].startNotifications();
+        chars[k].addEventListener("characteristicvaluechanged",e=>{
           try{ applyState(JSON.parse(new TextDecoder().decode(e.target.value)),false); }catch(_){}
-        }); }
+        });
+      }
       { const st=JSON.parse(new TextDecoder().decode(await chars.state.readValue())); applyState(st,true); updateFooter(st); }
-      if(chars.config){ applyState(JSON.parse(new TextDecoder().decode(await chars.config.readValue())),true); }
+      for(const k of ["config","system"]){
+        if(!chars[k]) continue;
+        try{ applyState(JSON.parse(new TextDecoder().decode(await chars[k].readValue())),true); }catch(_){}
+      }
       try{ const bn=new TextDecoder().decode(await chars.btname.readValue()); if(bn) $("btname").value=bn; }catch(_){}
       try{ const d=await chars.blepin.readValue(); $("pinOn").checked = d.byteLength>0 && d.getUint8(0)===1; }catch(_){}
       try{ const d=await chars.stled.readValue(); if(d.byteLength>=2){ const p=r2p(d.getUint8(0)); $("stled").value=p; $("stVal").textContent=p; $("stdim").checked=d.getUint8(1)===1; } }catch(_){}
@@ -313,7 +328,11 @@ $("power").onclick=()=>{ powerOn=!powerOn;
 
 $("sendText").onclick=()=>write("text",enc.encode($("text").value));
 $("textmode").onchange=e=>write("textmode",Uint8Array.of(+e.target.value));
-$("symbol").onchange=e=>write("symbol",Uint8Array.of(+e.target.value));
+const syLbl=v=>v==0?"Automatisch":(v/1000).toFixed(1).replace(".",",")+" s";
+const writeSym=()=>{ const v=+$("symms").value; write("symbol",Uint8Array.of(+$("symbol").value, v&255, (v>>8)&255)); };
+$("symbol").onchange=writeSym;
+$("symms").oninput=e=>{ $("syVal").textContent=syLbl(+e.target.value); };
+$("symms").onchange=writeSym;
 $("animmode").onchange=e=>write("animmode",Uint8Array.of(+e.target.value));
 $("flashpat").onchange=e=>write("flashpat",Uint8Array.of(+e.target.value));
 $("tcolor").oninput=e=>write("tcolor",rgb(e.target.value));
@@ -352,14 +371,14 @@ let presets=[], persistent=true;
 function load(){ try{const s=localStorage.getItem("fw_presets");presets=s?JSON.parse(s):DEFAULTS.slice();}catch(e){persistent=false;presets=DEFAULTS.slice();} }
 function save(){ try{localStorage.setItem("fw_presets",JSON.stringify(presets));}catch(e){persistent=false;}
   $("storeHint").textContent=persistent?"Presets werden im Browser gespeichert.":"Speichern dauerhaft nur im eigenen Browser; sonst nur für diese Sitzung."; }
-function capture(){ return {text:$("text").value,tm:+$("textmode").value,am:+$("animmode").value,fp:+$("flashpat").value,sy:+$("symbol").value,mi:+$("mirror").value,
+function capture(){ return {text:$("text").value,tm:+$("textmode").value,am:+$("animmode").value,fp:+$("flashpat").value,sy:+$("symbol").value,sms:+$("symms").value,mi:+$("mirror").value,
   wm:+$("wordms").value,sm:+$("scrollms").value,at:+$("animtakt").value,ar:+$("animrep").value,
   tc:$("tcolor").value, ac:$("acolor").value, wc:$("wcolor").value}; }
 async function apply(p){
   const tc=p.tc||p.color||"#ff5000", ac=p.ac||p.color||"#ff5000", wc=p.wc||ac;
   if(p.text) { await write("text",enc.encode(p.text)); $("text").value=p.text; }
-  const sy=("sy" in p)?+p.sy:0, mi=("mi" in p)?+p.mi:0;   // alte Vorlagen: Symbol aus / Normal
-  await write("symbol",Uint8Array.of(sy)); $("symbol").value=sy;
+  const sy=("sy" in p)?+p.sy:0, mi=("mi" in p)?+p.mi:0, sms=("sms" in p)?+p.sms:0;   // alte Vorlagen: Symbol aus / Normal / Auto
+  await write("symbol",Uint8Array.of(sy,sms&255,(sms>>8)&255)); $("symbol").value=sy; $("symms").value=sms; $("syVal").textContent=syLbl(sms);
   await write("mirror",Uint8Array.of(mi)); $("mirror").value=mi;
   await write("tcolor",rgb(tc)); $("tcolor").value=tc;
   await write("acolor",rgb(ac)); $("acolor").value=ac;
@@ -387,14 +406,25 @@ $("addPreset").onclick=()=>{const n=prompt("Name des neuen Presets:");if(!n)retu
 $("resetPresets").onclick=()=>{if(confirm("Presets auf Standard zurücksetzen?")){presets=DEFAULTS.slice();save();render();}};
 // ---------- Geraete-Presets / System / Readback ----------
 const DEVN=6;
+let presetEn=0x3F;
+const writePresetEn=()=>write("preset",Uint8Array.of(2,presetEn&0x3F));
 function renderDev(){ const c=$("devpresets"); if(!c) return; c.innerHTML="";
   for(let i=0;i<DEVN;i++){
     const row=document.createElement("div"); row.className="prow";
     const n=document.createElement("span"); n.className="name"; n.textContent="P"+(i+1); n.dataset.i=i; n.style.fontWeight="600";
+    const en=document.createElement("input"); en.type="checkbox"; en.className="pen"; en.dataset.i=i; en.style.width="auto"; en.title="Preset P"+(i+1)+" freigeben";
+    en.onchange=()=>{ let mask=presetEn; if(en.checked) mask|=(1<<i); else mask&=~(1<<i);
+      if(!(mask&0x3F)){ en.checked=true; return; }                       // mindestens eines muss frei bleiben
+      presetEn=mask&0x3F; writePresetEn(); applyPresetEn(); };
     const sv=document.createElement("button"); sv.className="btn sec mini"; sv.textContent="💾 speichern"; sv.title="aktuelle Geraete-Einstellungen fest auf P"+(i+1)+" speichern";
     sv.onclick=()=>{ if(confirm("Aktuelle Einstellungen fest auf P"+(i+1)+" speichern?")) write("preset",Uint8Array.of(1,i)); };
-    row.append(n,sv); c.appendChild(row);
+    row.append(en,n,sv); c.appendChild(row);
   }
+}
+function applyPresetEn(){
+  document.querySelectorAll("#devchips .chip").forEach(x=>x.classList.toggle("off",!(presetEn&(1<<+x.dataset.i))));
+  document.querySelectorAll("#devpresets .name").forEach(x=>x.classList.toggle("off",!(presetEn&(1<<+x.dataset.i))));
+  document.querySelectorAll("#devpresets .pen").forEach(x=>{ x.checked=!!(presetEn&(1<<+x.dataset.i)); });
 }
 function renderDevChips(){ const c=$("devchips"); if(!c) return; c.innerHTML="";
   for(let i=0;i<DEVN;i++){ const b=document.createElement("div"); b.className="chip"; b.textContent="P"+(i+1); b.dataset.i=i;
@@ -419,6 +449,8 @@ function applyState(st, full){
   if("text" in st && (presetChanged || st.text!==lastDevText)){ lastDevText=st.text; const el=$("text"); if(el&&el!==foc) el.value=st.text; }
   if("tM" in st) sv("textmode",st.tM);
   if("symbol" in st)   sv("symbol",st.symbol);
+  if("syMs" in st){ sv("symms",st.syMs); const L=$("syVal"); if(L) L.textContent=syLbl(st.syMs); }
+  if("pEn" in st){ presetEn=st.pEn&0x3F; applyPresetEn(); }
   if("aM" in st) sv("animmode",st.aM);
   if("fP" in st) sv("flashpat",st.fP);
   if("mr" in st)   sv("mirror",st.mr);
@@ -444,7 +476,7 @@ function applyState(st, full){
   if("bootTest" in st && $("bootTest")!==foc) $("bootTest").checked=!!st.bootTest;
   if("tempMax" in st && $("tempMax")!==foc) $("tempMax").value=st.tempMax;
 }
-renderDev(); renderDevChips();
+renderDev(); renderDevChips(); applyPresetEn();
 // ---------- Spannung / System ----------
 let curVGain=1000, lastVbat=0, lastFullState=null;
 function sendSyscfg(){
@@ -479,8 +511,9 @@ $("symTest").onclick=async()=>{
   const prev=(lastFullState&&("symbol" in lastFullState))?lastFullState.symbol:0;
   $("bkHint").textContent="Symbol-Test läuft …";
   const nSym=$("symbol").options.length-1;                       // alle Symbole (dynamisch, inkl. neuer)
-  for(let i=1;i<=nSym;i++){ await write("symbol",Uint8Array.of(i)); $("symbol").value=i; await sleep(1600); }
-  await write("symbol",Uint8Array.of(prev)); $("symbol").value=prev;
+  const sms=+$("symms").value, b=v=>Uint8Array.of(v,sms&255,(sms>>8)&255);
+  for(let i=1;i<=nSym;i++){ await write("symbol",b(i)); $("symbol").value=i; await sleep(1600); }
+  await write("symbol",b(prev)); $("symbol").value=prev;
   $("bkHint").textContent="Symbol-Test fertig.";
 };
 $("bkExport").onclick=()=>{
@@ -506,7 +539,7 @@ async function applyFullState(st){
   if("text" in st){ await write("text",enc.encode(st.text||"")); $("text").value=st.text||""; }
   if("textMode" in st){ await write("textmode",Uint8Array.of(st.textMode)); $("textmode").value=st.textMode; }
   if("animMode" in st){ await write("animmode",Uint8Array.of(st.animMode)); $("animmode").value=st.animMode; }
-  if("symbol" in st){ await write("symbol",Uint8Array.of(st.symbol)); $("symbol").value=st.symbol; }
+  if("symbol" in st){ const sms=("syMs" in st)?+st.syMs:0; await write("symbol",Uint8Array.of(st.symbol,sms&255,(sms>>8)&255)); $("symbol").value=st.symbol; $("symms").value=sms; $("syVal").textContent=syLbl(sms); }
   if("fP" in st){ await write("flashpat",Uint8Array.of(st.fP)); $("flashpat").value=st.fP; }
   if("mirror" in st){ await write("mirror",Uint8Array.of(st.mirror)); $("mirror").value=st.mirror; }
   if("bright" in st){ await write("bright",Uint8Array.of(st.bright)); const p=r2p(st.bright); $("bright").value=p; $("brVal").textContent=p; }
@@ -584,7 +617,7 @@ load(); save(); render();
     tm:+$("textmode").value, text:$("text").value||"", tcol:h2r($("tcolor").value), mir:+$("mirror").value,
     wordMs:+$("wordms").value, scrollMs:+$("scrollms").value, sym:+$("symbol").value,
     am:+$("animmode").value, acol:h2r($("acolor").value), wcol:h2r($("wcolor").value),
-    fp:+$("flashpat").value, takt:+$("animtakt").value, rep:Math.max(1,+$("animrep").value),
+    fp:+$("flashpat").value, takt:+$("animtakt").value, rep:Math.max(1,+$("animrep").value), syMs:+$("symms").value,
     br:Math.max(0.05,(+$("bright").value)/100) }; }
   let segs=[], si=0, wIx=0, sx=W, tPhase=0, tStep=0, step=0, cyc=0, sBm={w:0,g:[]}, sFrame=0, sLoop=0, lastSig="";
   function buildSegs(c){ const s=[]; if(c.sym>=1&&c.sym<=SYM.length) s.push("sym"); if(c.tm!=0&&words(c.text).length) s.push("text"); if(c.am!=0) s.push("anim"); return s; }
@@ -592,6 +625,7 @@ load(); save(); render();
     if(name==="text"){ wIx=0; sx=W; if(c.tm==2) sBm=bmp(words(c.text).join("  ")); } }
   function reset(c,now){ if(c.mir!=2) mir=(c.mir==1); segs=buildSegs(c); si=0; if(segs.length) initSeg(segs[0],c,now); }
   function rSym(c,now){ const s=SYM[c.sym-1], base=sFrame*320;
+    if(c.syMs && now-tPhase>=c.syMs){ sFrame=0; sLoop=0; return true; }   // feste Standzeit wie in der Firmware
     for(let r=0;r<H;r++)for(let x=0;x<W;x++){ const v=s.d.charCodeAt(base+r*W+x)-48; if(v) setpx(x,r,PAL[v]||PAL[4]); }
     if(now-tStep>=s.ms){ tStep=now; if(++sFrame>=s.f){ sFrame=0; if(++sLoop>=s.lp) return true; } } return false; }
   function rText(c,now){ const ws=words(c.text);
@@ -609,7 +643,7 @@ load(); save(); render();
       g.beginPath(); g.arc(cx,cy,r,0,7); g.fill(); } g.shadowBlur=0; }
   function frame(now){ requestAnimationFrame(frame);
     const c=read(); curBr=c.br;
-    const sg=[c.tm,c.text,c.sym,c.am,c.fp,c.mir,c.wordMs,c.scrollMs,c.takt,c.rep].join("|");
+    const sg=[c.tm,c.text,c.sym,c.am,c.fp,c.mir,c.wordMs,c.scrollMs,c.takt,c.rep,c.syMs].join("|");
     if(sg!==lastSig){ lastSig=sg; reset(c,now); }
     clr();
     if(segs.length){ if(si>=segs.length)si=0; const nm=segs[si];
