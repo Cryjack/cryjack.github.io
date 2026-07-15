@@ -36,6 +36,8 @@
   .chip.on{background:var(--amber);color:#111;border-color:var(--amber)}
   .chip.off{opacity:.3;pointer-events:none}
   .prow .name.off{opacity:.45}
+  .tgl{flex:none;border:1px solid var(--line);background:#12141a;color:var(--muted);border-radius:999px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer;min-width:74px}
+  .tgl.on{background:#2e7d32;border-color:#2e7d32;color:#fff}
   .prow{display:flex;gap:8px;align-items:center;margin-bottom:6px}.prow .name{flex:1;text-align:left}
   .prow .name.on{color:var(--amber);font-weight:700}
   footer{position:fixed;left:0;right:0;bottom:0;z-index:20;background:#12141af2;backdrop-filter:blur(6px);border-top:1px solid var(--line)}
@@ -56,7 +58,7 @@
     </div>
     <div class="tabs">
       <button class="tab active" data-t="tab-anzeige">Anzeige</button>
-      <button class="tab" data-t="tab-hell">Helligkeit</button>
+      <button class="tab" data-t="tab-hell">Einstellungen</button>
       <button class="tab" data-t="tab-system">System</button>
       <button class="tab" data-t="tab-wartung">Wartung</button>
     </div>
@@ -92,10 +94,10 @@
       <input id="tcolor" type="color" value="#ff5000">
       <label>Spiegelschrift &nbsp;<span style="color:#778">(für Rückspiegel des Vordermanns)</span></label>
       <select id="mirror"><option value="0">Normal</option><option value="1">Gespiegelt</option><option value="2">Normal + gespiegelt im Wechsel</option></select>
-      <label>Wort-Standzeit (ms): <span id="wmVal">450</span></label>
-      <input id="wordms" type="range" min="60" max="2000" step="10" value="450">
-      <label>Laufschrift-Tempo (ms/Schritt): <span id="smVal">35</span></label>
-      <input id="scrollms" type="range" min="5" max="120" value="35">
+      <label>Wort-Standzeit: <span id="wmVal">0,5 s</span></label>
+      <input id="wordms" type="range" min="100" max="1500" step="100" value="500">
+      <label>Laufschrift-Tempo: <span id="smVal">40 ms/Schritt</span> &nbsp;<span style="color:#778">(links langsam, rechts schnell)</span></label>
+      <input id="scrollms" type="range" min="5" max="70" value="35">
     </div>
 
     <div class="card">
@@ -106,7 +108,7 @@
         <option value="3">Unfall</option><option value="4">Stau</option><option value="5">Sperrung</option><option value="6">Löschfahrzeug</option>
       </select>
       <label>Standzeit: <span id="syVal">Automatisch</span></label>
-      <input id="symms" type="range" min="0" max="20000" step="500" value="0">
+      <input id="symms" type="range" min="0" max="10000" step="500" value="0">
       <div class="hint">0 = automatisch (die im Symbol hinterlegten Durchläufe). Sonst läuft das Symbol genau so lange und wechselt dann weiter.</div>
     </div>
 
@@ -114,16 +116,16 @@
       <h2>Animation / Blitz</h2>
       <label>Animationsart</label>
       <select id="animmode"><option value="1">Blitz</option><option value="2">Wig-Wag (links/rechts)</option><option value="0">Aus</option></select>
-      <label>Animationsfarbe &nbsp;<span style="color:#778">(Blitz / Wig-Wag links)</span></label>
-      <input id="acolor" type="color" value="#ff5000">
-      <label>Wig-Wag rechte Farbe</label>
-      <input id="wcolor" type="color" value="#ffae00">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div><label style="margin-top:0">Animationsfarbe <span style="color:#778">(links)</span></label><input id="acolor" type="color" value="#ff5000"></div>
+        <div><label style="margin-top:0">Wig-Wag <span style="color:#778">(rechts)</span></label><input id="wcolor" type="color" value="#ffae00"></div>
+      </div>
       <label>Blitzmuster &nbsp;<span style="color:#778">(nur Blitz)</span></label>
       <select id="flashpat"><option value="0">Einzelblitz</option><option value="1">Doppelblitz</option><option value="2">Dreifachblitz</option></select>
-      <label>Animationstakt (ms): <span id="atVal">250</span></label>
-      <input id="animtakt" type="range" min="40" max="1000" step="10" value="250">
+      <label>Animationstakt: <span id="atVal">0,25 s</span></label>
+      <input id="animtakt" type="range" min="40" max="500" step="10" value="250">
       <label>Wiederholungen je Durchlauf: <span id="arVal">2</span></label>
-      <input id="animrep" type="range" min="1" max="10" value="2">
+      <input id="animrep" type="range" min="1" max="5" value="2">
     </div>
   </section>
 
@@ -204,19 +206,24 @@
       <label style="display:flex;align-items:center;gap:8px"><input id="wifi" type="checkbox" style="width:auto"> WLAN/OTA aktiv &nbsp;<span style="color:#778">(am Gerät: langer Tastendruck)</span></label>
     </div>
     <div class="card needsBle">
-      <h2>Spannung, Temperatur &amp; Selbsttest</h2>
+      <h2>Spannung &amp; Temperatur</h2>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <div><span style="font-size:12px;color:#778">Abschalten unter (V)</span><input id="uvOff" type="number" step="0.1" min="9" max="13" value="11.8"></div>
-        <div><span style="font-size:12px;color:#778">Wieder frei ab (V)</span><input id="uvOn" type="number" step="0.1" min="9" max="14" value="12.3"></div>
+        <div><span style="font-size:12px;color:#778">Abschalten unter (V)</span><input id="uvOff" type="text" inputmode="decimal" value="11,8"></div>
+        <div><span style="font-size:12px;color:#778">Wieder frei ab (V)</span><input id="uvOn" type="text" inputmode="decimal" value="12,3"></div>
       </div>
       <div style="margin-top:8px"><span style="font-size:12px;color:#778">Not-Abschaltung über (°C)</span><input id="tempMax" type="number" step="1" min="50" max="110" value="80"></div>
-      <label style="display:flex;align-items:center;gap:8px;margin-top:8px"><input id="bootTest" type="checkbox" checked style="width:auto"> Selbsttest beim Einschalten (LED-Durchlauf)</label>
       <div class="prow" style="align-items:flex-end;margin-top:8px">
-        <div style="flex:1"><span style="font-size:12px;color:#778">Kalibrieren: gemessene Akkuspannung (V)</span><input id="calV" type="number" step="0.1" placeholder="z. B. 12.6"></div>
+        <div style="flex:1"><span style="font-size:12px;color:#778">Kalibrieren: gemessene Akkuspannung (V)</span><input id="calV" type="text" inputmode="decimal" placeholder="z. B. 12,6"></div>
         <button class="btn sec mini" id="calBtn" title="Kalibrieren">⚖</button>
       </div>
-      <button class="btn" id="sysSave" style="margin-top:8px">Spannungs-Einstellungen senden</button>
-      <div class="hint" id="sysStatus">Status: –</div>
+      <button class="btn" id="sysSave" style="margin-top:8px">Spannung &amp; Temperatur senden</button>
+      <div class="hint" id="sysStatus"></div>
+    </div>
+    <div class="card needsBle">
+      <h2>Selbsttest</h2>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:0"><input id="bootTest" type="checkbox" checked style="width:auto"> Selbsttest beim Einschalten (LED-Durchlauf)</label>
+      <div class="hint">Kurzer Lauf über alle LEDs beim Start - zeigt defekte Pixel sofort.</div>
+      <button class="btn sec" id="btSave" style="margin-top:8px">Übernehmen</button>
     </div>
   </section>
 
@@ -259,6 +266,7 @@
     <span>Akku <b id="fVbat">–</b></span>
     <span>BLE <b id="fBle">–</b></span>
     <span>WLAN <b id="fWifi">–</b></span>
+    <span title="längster Schleifendurchlauf – Werte über ~35 ms können die Laufschrift stocken lassen">Takt <b id="fLoop">–</b></span>
     <span class="warn" id="fWarn" style="display:none">⚠ UNTERSPANNUNG</span>
   </div>
 </footer>
@@ -270,8 +278,24 @@ const U={text:"f0a00001",textmode:"f0a00002",animmode:"f0a00003",bright:"f0a0000
          autodim:"f0a0000b",power:"f0a0000c",acolor:"f0a0000d",wigcolor:"f0a0000e",mirror:"f0a0000f",buzzer:"f0a00010",mindim:"f0a00011",preset:"f0a00012",state:"f0a00013",wifi:"f0a00014",symbol:"f0a00015",syscfg:"f0a00016",test:"f0a00017",btname:"f0a00018",blepin:"f0a00019",stled:"f0a0001a",buzfreq:"f0a0001b",reset:"f0a0001c",oledcfg:"f0a0001d",config:"f0a0001e",system:"f0a0001f"};
 const uuid=s=>`${s}-1234-4a3c-8c00-aabbccddeeff`;
 let chars={}; let bleDev=null;
+let lastCS=null, lastSS=null, cfgBusy=false;
+// Notifications tragen nur MTU-3 Byte (iOS/Bluefy oft 182) - die Config ist groesser.
+// Deshalb: der kleine Live-Feed transportiert Zaehler; bei Aenderung wird die Config per Read geholt (bis 512 Byte).
+async function syncCfg(st){
+  if(cfgBusy) return; cfgBusy=true;
+  try{
+    if(("cS" in st) && st.cS!==lastCS && chars.config){
+      lastCS=st.cS; applyState(JSON.parse(new TextDecoder().decode(await chars.config.readValue())),false);
+    }
+    if(("sS" in st) && st.sS!==lastSS && chars.system){
+      lastSS=st.sS; applyState(JSON.parse(new TextDecoder().decode(await chars.system.readValue())),false);
+    }
+  }catch(_){ }finally{ cfgBusy=false; }
+}
 const p2r=p=>Math.round(p*255/100), r2p=r=>Math.round(r*100/255);  // Prozent <-> Roh 0..255
 const $=id=>document.getElementById(id);
+const numDE=v=>parseFloat(String(v).replace(",","."));     // Komma oder Punkt annehmen
+const deZ=(v,n)=>v.toFixed(n).replace(".",",");
 const enc=new TextEncoder();
 const rgb=h=>Uint8Array.of(parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16));
 const u16=v=>Uint8Array.of(v&255,v>>8);
@@ -299,7 +323,7 @@ $("connect").onclick=async()=>{
     try{
       await chars.state.startNotifications();
       chars.state.addEventListener("characteristicvaluechanged",e=>{
-        try{ const st=JSON.parse(new TextDecoder().decode(e.target.value)); applyState(st,false); updateFooter(st); }catch(_){}
+        try{ const st=JSON.parse(new TextDecoder().decode(e.target.value)); applyState(st,false); updateFooter(st); syncCfg(st); }catch(_){}
       });
       for(const k of ["config","system"]){                       // Anzeige-Config + System-Config
         if(!chars[k]) continue;
@@ -313,6 +337,7 @@ $("connect").onclick=async()=>{
         if(!chars[k]) continue;
         try{ applyState(JSON.parse(new TextDecoder().decode(await chars[k].readValue())),true); }catch(_){}
       }
+      lastCS=null; lastSS=null;                       // erste Live-Meldung zieht die Zaehler nach
       try{ const bn=new TextDecoder().decode(await chars.btname.readValue()); if(bn) $("btname").value=bn; }catch(_){}
       try{ const d=await chars.blepin.readValue(); $("pinOn").checked = d.byteLength>0 && d.getUint8(0)===1; }catch(_){}
       try{ const d=await chars.stled.readValue(); if(d.byteLength>=2){ const p=r2p(d.getUint8(0)); $("stled").value=p; $("stVal").textContent=p; $("stdim").checked=d.getUint8(1)===1; } }catch(_){}
@@ -338,9 +363,12 @@ $("flashpat").onchange=e=>write("flashpat",Uint8Array.of(+e.target.value));
 $("tcolor").oninput=e=>write("tcolor",rgb(e.target.value));
 $("acolor").oninput=e=>write("acolor",rgb(e.target.value));
 $("wcolor").oninput=e=>write("wigcolor",rgb(e.target.value));
-$("wordms").oninput=e=>{$("wmVal").textContent=e.target.value;write("wordms",u16(+e.target.value));};
-$("scrollms").oninput=e=>{$("smVal").textContent=e.target.value;write("scrollms",u16(+e.target.value));};
-$("animtakt").oninput=e=>{$("atVal").textContent=e.target.value;write("animtakt",u16(+e.target.value));};
+const sLbl1=v=>(v/1000).toFixed(1).replace(".",",")+" s";
+const sLbl2=v=>(v/1000).toFixed(2).replace(".",",")+" s";
+const smMs=v=>75-v;            // Slider rechts = schnell (kleines ms)
+$("wordms").oninput=e=>{$("wmVal").textContent=sLbl1(+e.target.value);write("wordms",u16(+e.target.value));};
+$("scrollms").oninput=e=>{const ms=smMs(+e.target.value);$("smVal").textContent=ms+" ms/Schritt";write("scrollms",u16(ms));};
+$("animtakt").oninput=e=>{$("atVal").textContent=sLbl2(+e.target.value);write("animtakt",u16(+e.target.value));};
 $("animrep").oninput=e=>{$("arVal").textContent=e.target.value;write("animrep",Uint8Array.of(+e.target.value));};
 $("bright").oninput=e=>{$("brVal").textContent=e.target.value;write("bright",Uint8Array.of(p2r(+e.target.value)));};
 $("autodim").onchange=e=>write("autodim",Uint8Array.of(e.target.checked?1:0));
@@ -372,7 +400,7 @@ function load(){ try{const s=localStorage.getItem("fw_presets");presets=s?JSON.p
 function save(){ try{localStorage.setItem("fw_presets",JSON.stringify(presets));}catch(e){persistent=false;}
   $("storeHint").textContent=persistent?"Presets werden im Browser gespeichert.":"Speichern dauerhaft nur im eigenen Browser; sonst nur für diese Sitzung."; }
 function capture(){ return {text:$("text").value,tm:+$("textmode").value,am:+$("animmode").value,fp:+$("flashpat").value,sy:+$("symbol").value,sms:+$("symms").value,mi:+$("mirror").value,
-  wm:+$("wordms").value,sm:+$("scrollms").value,at:+$("animtakt").value,ar:+$("animrep").value,
+  wm:+$("wordms").value,sm:smMs(+$("scrollms").value),at:+$("animtakt").value,ar:+$("animrep").value,
   tc:$("tcolor").value, ac:$("acolor").value, wc:$("wcolor").value}; }
 async function apply(p){
   const tc=p.tc||p.color||"#ff5000", ac=p.ac||p.color||"#ff5000", wc=p.wc||ac;
@@ -383,9 +411,9 @@ async function apply(p){
   await write("tcolor",rgb(tc)); $("tcolor").value=tc;
   await write("acolor",rgb(ac)); $("acolor").value=ac;
   await write("wigcolor",rgb(wc)); $("wcolor").value=wc;
-  await write("wordms",u16(p.wm));   $("wordms").value=p.wm;   $("wmVal").textContent=p.wm;
-  await write("scrollms",u16(p.sm)); $("scrollms").value=p.sm; $("smVal").textContent=p.sm;
-  await write("animtakt",u16(p.at)); $("animtakt").value=p.at; $("atVal").textContent=p.at;
+  await write("wordms",u16(p.wm));   $("wordms").value=p.wm;   $("wmVal").textContent=sLbl1(p.wm);
+  await write("scrollms",u16(p.sm)); $("scrollms").value=smMs(p.sm); $("smVal").textContent=p.sm+" ms/Schritt";
+  await write("animtakt",u16(p.at)); $("animtakt").value=p.at; $("atVal").textContent=sLbl2(p.at);
   await write("animrep",Uint8Array.of(p.ar)); $("animrep").value=p.ar; $("arVal").textContent=p.ar;
   await write("flashpat",Uint8Array.of(p.fp)); $("flashpat").value=p.fp;
   await write("animmode",Uint8Array.of(p.am)); $("animmode").value=p.am;
@@ -412,19 +440,19 @@ function renderDev(){ const c=$("devpresets"); if(!c) return; c.innerHTML="";
   for(let i=0;i<DEVN;i++){
     const row=document.createElement("div"); row.className="prow";
     const n=document.createElement("span"); n.className="name"; n.textContent="P"+(i+1); n.dataset.i=i; n.style.fontWeight="600";
-    const en=document.createElement("input"); en.type="checkbox"; en.className="pen"; en.dataset.i=i; en.style.width="auto"; en.title="Preset P"+(i+1)+" freigeben";
-    en.onchange=()=>{ let mask=presetEn; if(en.checked) mask|=(1<<i); else mask&=~(1<<i);
-      if(!(mask&0x3F)){ en.checked=true; return; }                       // mindestens eines muss frei bleiben
-      presetEn=mask&0x3F; writePresetEn(); applyPresetEn(); };
     const sv=document.createElement("button"); sv.className="btn sec mini"; sv.textContent="💾 speichern"; sv.title="aktuelle Geraete-Einstellungen fest auf P"+(i+1)+" speichern";
     sv.onclick=()=>{ if(confirm("Aktuelle Einstellungen fest auf P"+(i+1)+" speichern?")) write("preset",Uint8Array.of(1,i)); };
-    row.append(en,n,sv); c.appendChild(row);
+    const en=document.createElement("button"); en.className="tgl pen"; en.dataset.i=i; en.title="Preset P"+(i+1)+" freigeben oder deaktivieren";
+    en.onclick=()=>{ const cur=!!(presetEn&(1<<i)); let mask=presetEn; if(cur) mask&=~(1<<i); else mask|=(1<<i);
+      if(!(mask&0x3F)) return;                                        // mindestens eines muss frei bleiben
+      presetEn=mask&0x3F; writePresetEn(); applyPresetEn(); };
+    row.append(n,sv,en); c.appendChild(row);
   }
 }
 function applyPresetEn(){
   document.querySelectorAll("#devchips .chip").forEach(x=>x.classList.toggle("off",!(presetEn&(1<<+x.dataset.i))));
   document.querySelectorAll("#devpresets .name").forEach(x=>x.classList.toggle("off",!(presetEn&(1<<+x.dataset.i))));
-  document.querySelectorAll("#devpresets .pen").forEach(x=>{ x.checked=!!(presetEn&(1<<+x.dataset.i)); });
+  document.querySelectorAll("#devpresets .pen").forEach(x=>{ const on=!!(presetEn&(1<<+x.dataset.i)); x.classList.toggle("on",on); x.textContent=on?"Aktiv":"Inaktiv"; });
 }
 function renderDevChips(){ const c=$("devchips"); if(!c) return; c.innerHTML="";
   for(let i=0;i<DEVN;i++){ const b=document.createElement("div"); b.className="chip"; b.textContent="P"+(i+1); b.dataset.i=i;
@@ -464,15 +492,15 @@ function applyState(st, full){
   if("oM" in st)  sl("oledmin","olmVal",r2p(st.oM));
   if("oD" in st)  sv("oleddim",st.oD);
   if("oO" in st)  sv("oledoff",st.oO);
-  if("wM" in st)   sl("wordms","wmVal",st.wM);
-  if("sM" in st) sl("scrollms","smVal",st.sM);
-  if("aT" in st) sl("animtakt","atVal",st.aT);
+  if("wM" in st){ sv("wordms",st.wM); const L=$("wmVal"); if(L)L.textContent=sLbl1(st.wM); }
+  if("sM" in st){ sv("scrollms",smMs(st.sM)); const L=$("smVal"); if(L)L.textContent=st.sM+" ms/Schritt"; }
+  if("aT" in st){ sv("animtakt",st.aT); const L=$("atVal"); if(L)L.textContent=sLbl2(st.aT); }
   if("aR" in st)  sl("animrep","arVal",st.aR);
   if(st.tcolor) sv("tcolor",toHex(st.tcolor));
   if(st.acolor) sv("acolor",toHex(st.acolor));
   if(st.wcolor) sv("wcolor",toHex(st.wcolor));
-  if("uvOff" in st && $("uvOff")!==foc) $("uvOff").value=(st.uvOff/10).toFixed(1);
-  if("uvOn" in st && $("uvOn")!==foc) $("uvOn").value=(st.uvOn/10).toFixed(1);
+  if("uvOff" in st && $("uvOff")!==foc) $("uvOff").value=deZ(st.uvOff/10,1);
+  if("uvOn" in st && $("uvOn")!==foc) $("uvOn").value=deZ(st.uvOn/10,1);
   if("bootTest" in st && $("bootTest")!==foc) $("bootTest").checked=!!st.bootTest;
   if("tempMax" in st && $("tempMax")!==foc) $("tempMax").value=st.tempMax;
 }
@@ -480,20 +508,21 @@ renderDev(); renderDevChips(); applyPresetEn();
 // ---------- Spannung / System ----------
 let curVGain=1000, lastVbat=0, lastFullState=null;
 function sendSyscfg(){
-  const off=Math.max(90,Math.min(130,Math.round(parseFloat($("uvOff").value)*10)||118));
-  const on =Math.max(90,Math.min(140,Math.round(parseFloat($("uvOn").value)*10)||123));
+  const off=Math.max(90,Math.min(130,Math.round(numDE($("uvOff").value)*10)||118));
+  const on =Math.max(90,Math.min(140,Math.round(numDE($("uvOn").value)*10)||123));
   const bt=$("bootTest").checked?1:0;
-  const tmx=Math.max(50,Math.min(110,Math.round(parseFloat($("tempMax").value))||80));
+  const tmx=Math.max(50,Math.min(110,Math.round(numDE($("tempMax").value))||80));
   write("syscfg",Uint8Array.of(off,on,bt,curVGain&255,(curVGain>>8)&255,tmx));
 }
-$("sysSave").onclick=sendSyscfg;
+$("sysSave").onclick=()=>{ sendSyscfg(); $("sysStatus").textContent="Gesendet und gespeichert."; };
+$("btSave").onclick=()=>{ sendSyscfg(); $("sysStatus").textContent="Selbsttest-Einstellung gespeichert."; };
 $("btnameSave").onclick=async()=>{ const n=($("btname").value||"").trim()||"FW-Frontdisplay"; await write("btname",enc.encode(n)); $("sysStatus").textContent="Name gespeichert – wird nach Neustart aktiv."; };
 $("pinSave").onclick=async()=>{ const on=$("pinOn").checked?1:0; const raw=($("pinVal").value||"").trim(); let payload;
   if(raw!==""){ const v=Math.max(0,Math.min(999999,parseInt(raw,10)||0)); payload=Uint8Array.of(on, v&255,(v>>8)&255,(v>>16)&255,(v>>>24)&255); }
   else { payload=Uint8Array.of(on); }
   await write("blepin",payload); $("pinVal").value=""; $("sysStatus").textContent="PIN-Einstellung gespeichert – wird nach Neustart aktiv."; };
 $("calBtn").onclick=()=>{
-  const actual=parseFloat($("calV").value);
+  const actual=numDE($("calV").value);
   if(actual>0 && lastVbat>0){ curVGain=Math.max(500,Math.min(2000,Math.round(curVGain*actual/lastVbat))); sendSyscfg(); }
 };
 
@@ -546,9 +575,9 @@ async function applyFullState(st){
   if("minDim" in st){ await write("mindim",Uint8Array.of(st.minDim)); const p=r2p(st.minDim); $("mindim").value=p; $("mdVal").textContent=p; }
   if("autoDim" in st){ await write("autodim",Uint8Array.of(st.autoDim?1:0)); $("autodim").checked=!!st.autoDim; }
   if(("buzzA" in st)||("buzzC" in st)||("buzzS" in st)||("buzzer" in st)){ const f=k=>("buzz"+k in st?st["buzz"+k]:("buzzS" in st?st.buzzS:st.buzzer))?1:0; const bA=("buzzA" in st?st.buzzA:st.buzzer)?1:0, bC=f("C"), bU=f("U"), bP=f("P"); await write("buzzer",Uint8Array.of(bA,bC,bU,bP)); $("buzzAnim").checked=!!bA; $("buzzConn").checked=!!bC; $("buzzUV").checked=!!bU; $("buzzPreset").checked=!!bP; }
-  if("wM" in st){ await write("wordms",u16(st.wM)); $("wordms").value=st.wM; $("wmVal").textContent=st.wM; }
-  if("sM" in st){ await write("scrollms",u16(st.sM)); $("scrollms").value=st.sM; $("smVal").textContent=st.sM; }
-  if("aT" in st){ await write("animtakt",u16(st.aT)); $("animtakt").value=st.aT; $("atVal").textContent=st.aT; }
+  if("wM" in st){ await write("wordms",u16(st.wM)); $("wordms").value=st.wM; $("wmVal").textContent=sLbl1(st.wM); }
+  if("sM" in st){ await write("scrollms",u16(st.sM)); $("scrollms").value=smMs(st.sM); $("smVal").textContent=st.sM+" ms/Schritt"; }
+  if("aT" in st){ await write("animtakt",u16(st.aT)); $("animtakt").value=st.aT; $("atVal").textContent=sLbl2(st.aT); }
   if("aR" in st){ await write("animrep",Uint8Array.of(st.aR)); $("animrep").value=st.aR; $("arVal").textContent=st.aR; }
   if(st.tcolor){ await write("tcolor",rgb(hx(st.tcolor))); $("tcolor").value=hx(st.tcolor); }
   if(st.acolor){ await write("acolor",rgb(hx(st.acolor))); $("acolor").value=hx(st.acolor); }
@@ -556,8 +585,8 @@ async function applyFullState(st){
   const off=("uvOff" in st)?st.uvOff:118, on=("uvOn" in st)?st.uvOn:123, bt=("bootTest" in st)?(st.bootTest?1:0):1;
   if("vGain" in st) curVGain=st.vGain;
   await write("syscfg",Uint8Array.of(off,on,bt,curVGain&255,(curVGain>>8)&255,("tempMax" in st)?Math.max(50,Math.min(110,st.tempMax)):80));
-  if("uvOff" in st) $("uvOff").value=(off/10).toFixed(1);
-  if("uvOn" in st) $("uvOn").value=(on/10).toFixed(1);
+  if("uvOff" in st) $("uvOff").value=deZ(off/10,1);
+  if("uvOn" in st) $("uvOn").value=deZ(on/10,1);
   if("bootTest" in st) $("bootTest").checked=!!st.bootTest;
 }
 
@@ -574,9 +603,10 @@ function updateFooter(st){ const g=(id,v)=>{const e=$(id);if(e)e.textContent=v;}
   g("fTemp",("temp" in st && st.temp>0)?(st.temp+" °C"):"–");
   g("fVbat",("vbat" in st)?((st.vbat/10).toFixed(1).replace(".",",")+" V"):"–");
   g("fBle","✓"); g("fWifi",st.wifi?"AN":"–");
+  if("lp" in st){ const e=$("fLoop"); if(e){ e.textContent=st.lp+" ms"; e.style.color=st.lp>35?"#ff7043":""; } }
   const w=$("fWarn"); if(w){ if(st.uvlock){w.textContent="⚠ UNTERSPANNUNG";w.style.display="inline";} else if(st.templock){w.textContent="⚠ ÜBERTEMPERATUR";w.style.display="inline";} else w.style.display="none"; }
 }
-function clearFooter(){ ["fPreset","fHell","fLux","fTemp","fVbat","fBle","fWifi"].forEach(id=>{const e=$(id);if(e)e.textContent="–";});
+function clearFooter(){ ["fPreset","fHell","fLux","fTemp","fVbat","fBle","fWifi","fLoop"].forEach(id=>{const e=$(id);if(e)e.textContent="–";});
   const w=$("fWarn"); if(w) w.style.display="none"; }
 
 load(); save(); render();
@@ -615,7 +645,7 @@ load(); save(); render();
     if(fp==2)return{on:[1,0,1,0,1,0],dur:[55,65,55,65,55,Math.max(180,gap)]}; return{on:[1,0],dur:[gap,gap]}; }
   function read(){ return {
     tm:+$("textmode").value, text:$("text").value||"", tcol:h2r($("tcolor").value), mir:+$("mirror").value,
-    wordMs:+$("wordms").value, scrollMs:+$("scrollms").value, sym:+$("symbol").value,
+    wordMs:+$("wordms").value, scrollMs:75-(+$("scrollms").value), sym:+$("symbol").value,
     am:+$("animmode").value, acol:h2r($("acolor").value), wcol:h2r($("wcolor").value),
     fp:+$("flashpat").value, takt:+$("animtakt").value, rep:Math.max(1,+$("animrep").value), syMs:+$("symms").value,
     br:Math.max(0.05,(+$("bright").value)/100) }; }
