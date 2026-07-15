@@ -98,8 +98,8 @@
       <select id="mirror"><option value="0">Normal</option><option value="1">Gespiegelt</option><option value="2">Normal + gespiegelt im Wechsel</option></select>
       <label>Wort-Standzeit: <span id="wmVal">0,5 s</span></label>
       <input id="wordms" type="range" min="100" max="1500" step="100" value="500">
-      <label>Laufschrift-Tempo: <span id="smVal">40 ms/Schritt</span> &nbsp;<span style="color:#778">(links langsam, rechts schnell)</span></label>
-      <input id="scrollms" type="range" min="5" max="70" value="35">
+      <label>Laufschrift-Tempo: <span id="smVal">35 ms/Schritt</span> &nbsp;<span style="color:#778">(links langsam, rechts schnell)</span></label>
+      <input id="scrollms" type="range" min="20" max="60" value="45">
     </div>
 
     <div class="card">
@@ -307,6 +307,15 @@ function setState(ok,t){$("dot").className="dot"+(ok?" on":"");
   const pw=$("power"); pw.disabled=!ok; pw.style.opacity=ok?1:.5;
   if(!ok) clearFooter();}
 const write=async(k,d)=>{ lastWrite=Date.now(); if(chars[k]) await chars[k].writeValue(d); };
+// Regler senden bei jedem Pixel einen BLE-Write -> Warteschlange laeuft voll und der Regler haengt.
+// Daher gedrosselt (alle 150 ms) und der finale Wert sicher beim Loslassen.
+const thr={};
+function writeThrottled(k,d){
+  const t=thr[k]||(thr[k]={last:0,timer:0,pend:null});
+  t.pend=d; const now=Date.now(), wait=150-(now-t.last);
+  if(wait<=0){ t.last=now; const v=t.pend; t.pend=null; write(k,v); }
+  else if(!t.timer){ t.timer=setTimeout(()=>{ t.timer=0; if(t.pend){ t.last=Date.now(); const v=t.pend; t.pend=null; write(k,v); } }, wait); }
+}
 
 $("connect").onclick=async()=>{
   if(bleDev && bleDev.gatt.connected){ bleDev.gatt.disconnect(); return; }   // Umschalter: trennen
@@ -360,6 +369,7 @@ const writeSym=()=>{ const v=+$("symms").value; write("symbol",Uint8Array.of(+$(
 $("symbol").onchange=writeSym;
 $("symms").oninput=e=>{ $("syVal").textContent=syLbl(+e.target.value); };
 $("symms").onchange=writeSym;
+$("symms").oninput=()=>{};
 $("animmode").onchange=e=>write("animmode",Uint8Array.of(+e.target.value));
 $("flashpat").onchange=e=>write("flashpat",Uint8Array.of(+e.target.value));
 $("tcolor").oninput=e=>write("tcolor",rgb(e.target.value));
@@ -367,10 +377,13 @@ $("acolor").oninput=e=>write("acolor",rgb(e.target.value));
 $("wcolor").oninput=e=>write("wigcolor",rgb(e.target.value));
 const sLbl1=v=>(v/1000).toFixed(1).replace(".",",")+" s";
 const sLbl2=v=>(v/1000).toFixed(2).replace(".",",")+" s";
-const smMs=v=>75-v;            // Slider rechts = schnell (kleines ms)
-$("wordms").oninput=e=>{$("wmVal").textContent=sLbl1(+e.target.value);write("wordms",u16(+e.target.value));};
-$("scrollms").oninput=e=>{const ms=smMs(+e.target.value);$("smVal").textContent=ms+" ms/Schritt";write("scrollms",u16(ms));};
-$("animtakt").oninput=e=>{$("atVal").textContent=sLbl2(+e.target.value);write("animtakt",u16(+e.target.value));};
+const smMs=v=>80-v;            // Slider 20..60 -> 60..20 ms (rechts schnell); Funktion ist ihre eigene Umkehrung
+$("wordms").oninput=e=>{$("wmVal").textContent=sLbl1(+e.target.value);writeThrottled("wordms",u16(+e.target.value));};
+$("wordms").onchange=e=>write("wordms",u16(+e.target.value));
+$("scrollms").oninput=e=>{const ms=smMs(+e.target.value);$("smVal").textContent=ms+" ms/Schritt";writeThrottled("scrollms",u16(ms));};
+$("scrollms").onchange=e=>write("scrollms",u16(smMs(+e.target.value)));
+$("animtakt").oninput=e=>{$("atVal").textContent=sLbl2(+e.target.value);writeThrottled("animtakt",u16(+e.target.value));};
+$("animtakt").onchange=e=>write("animtakt",u16(+e.target.value));
 $("animrep").oninput=e=>{$("arVal").textContent=e.target.value;write("animrep",Uint8Array.of(+e.target.value));};
 $("bright").oninput=e=>{$("brVal").textContent=e.target.value;write("bright",Uint8Array.of(p2r(+e.target.value)));};
 $("autodim").onchange=e=>write("autodim",Uint8Array.of(e.target.checked?1:0));
@@ -645,11 +658,11 @@ load(); save(); render();
   const fillAll=c=>{ for(let i=0;i<W*H;i++) buf[i]=c; };
   const fillRect=(x0,w,c)=>{ for(let y=0;y<H;y++) for(let x=x0;x<x0+w;x++) setpx(x,y,c); };
   function blit(bm,off,c){ if(!bm.w)return; for(let y=0;y<H;y++)for(let x=0;x<bm.w;x++){ if(bm.g[y][x]){ const dx=mir?(W-1-(off+x)):(off+x); setpx(dx,y,c);} } }
-  function seq(fp,gap){ if(fp==1)return{on:[1,0,1,0],dur:[70,90,70,Math.max(150,gap)]};
-    if(fp==2)return{on:[1,0,1,0,1,0],dur:[55,65,55,65,55,Math.max(180,gap)]}; return{on:[1,0],dur:[gap,gap]}; }
+  function seq(fp,gap){ if(fp==1)return{on:[1,0,1,0],dur:[60,110,60,Math.max(300,gap)]};
+    if(fp==2)return{on:[1,0,1,0,1,0],dur:[60,110,60,110,60,Math.max(400,gap)]}; return{on:[1,0],dur:[gap,gap]}; }
   function read(){ return {
     tm:+$("textmode").value, text:$("text").value||"", tcol:h2r($("tcolor").value), mir:+$("mirror").value,
-    wordMs:+$("wordms").value, scrollMs:75-(+$("scrollms").value), sym:+$("symbol").value,
+    wordMs:+$("wordms").value, scrollMs:80-(+$("scrollms").value), sym:+$("symbol").value,
     am:+$("animmode").value, acol:h2r($("acolor").value), wcol:h2r($("wcolor").value),
     fp:+$("flashpat").value, takt:+$("animtakt").value, rep:Math.max(1,+$("animrep").value), syMs:+$("symms").value,
     br:Math.max(0.05,(+$("bright").value)/100) }; }
