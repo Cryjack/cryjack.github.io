@@ -667,18 +667,28 @@ load(); save(); render();
     fp:+$("flashpat").value, takt:+$("animtakt").value, rep:Math.max(1,+$("animrep").value), syMs:+$("symms").value,
     br:Math.max(0.05,(+$("bright").value)/100) }; }
   let segs=[], si=0, wIx=0, sx=W, tPhase=0, tStep=0, step=0, cyc=0, sBm={w:0,g:[]}, sFrame=0, sLoop=0, lastSig="";
+  let wBm={w:0,g:[]}, wScroll=false, wX=W, wBlank=false, tWord=0;   // Wortwechsel: einzelne zu lange Woerter laufen durch (wie prepWord/wordScrolling)
   function buildSegs(c){ const s=[]; if(c.sym>=1&&c.sym<=SYM.length) s.push("sym"); if(c.tm!=0&&words(c.text).length) s.push("text"); if(c.am!=0) s.push("anim"); return s; }
+  function prepWord(c,now){ wBm=bmp(words(c.text)[wIx]||""); wScroll=(wBm.w>W); wX=W; wBlank=false; tWord=now; }
   function initSeg(name,c,now){ tPhase=now; tStep=now; step=0; cyc=0; sFrame=0; sLoop=0;
-    if(name==="text"){ wIx=0; sx=W; if(c.tm==2) sBm=bmp(words(c.text).join("  ")); } }
+    if(name==="text"){ wIx=0; sx=W; if(c.tm==2) sBm=bmp(words(c.text).join(" ")); else prepWord(c,now); } }
   function reset(c,now){ if(c.mir!=2) mir=(c.mir==1); segs=buildSegs(c); si=0; if(segs.length) initSeg(segs[0],c,now); }
   function rSym(c,now){ const s=SYM[c.sym-1], base=sFrame*320;
     if(c.syMs && now-tPhase>=c.syMs){ sFrame=0; sLoop=0; return true; }   // feste Standzeit wie in der Firmware
     for(let r=0;r<H;r++)for(let x=0;x<W;x++){ const v=s.d.charCodeAt(base+r*W+x)-48; if(v) setpx(x,r,PAL[v]||PAL[4]); }
     if(now-tStep>=s.ms){ tStep=now; if(++sFrame>=s.f){ sFrame=0; if(++sLoop>=s.lp) return true; } } return false; }
   function rText(c,now){ const ws=words(c.text);
-    if(c.tm==2){ while(now-tStep>=c.scrollMs){ sx--; tStep+=c.scrollMs; } blit(sBm,sx,c.tcol); if(sx<=-sBm.w){ sx=W; return true; } return false; }
-    const bm=bmp(ws[wIx]||""), off=Math.round((W-bm.w)/2); blit(bm,off,c.tcol);
-    if(now-tPhase>=c.wordMs){ tPhase=now; wIx++; if(wIx>=ws.length){ wIx=0; return true; } } return false; }
+    if(c.tm==2){ sx = W - Math.floor((now-tPhase)/c.scrollMs); blit(sBm,sx,c.tcol); return (sx < -sBm.w); }
+    if(wScroll){                                        // Wort breiter als 40 px -> durchlaufen lassen
+      wX = W - Math.floor((now-tWord)/c.scrollMs);
+      blit(wBm,wX,c.tcol);
+      if(wX < -wBm.w){ wIx++; if(wIx>=ws.length){ wIx=0; return true; } prepWord(c,now); }
+      return false;
+    }
+    if(!wBlank){ let off=Math.round((W-wBm.w)/2); if(off<0) off=0; blit(wBm,off,c.tcol);
+      if(now-tWord>=c.wordMs){ wBlank=true; tWord=now; } return false; }
+    if(now-tWord>=90){ wIx++; if(wIx>=ws.length){ wIx=0; return true; } prepWord(c,now); }   // kurze Dunkelpause zwischen den Woertern
+    return false; }
   function rAnim(c,now){ if(c.am==1){ const s=seq(c.fp,c.takt); if(step>=s.on.length)step=0; if(s.on[step]) fillAll(c.acol);
       if(now-tStep>=s.dur[step]){ tStep=now; step++; if(step>=s.on.length){ step=0; if(++cyc>=c.rep) return true; } } return false; }
     const half=W/2; if(step===0) fillRect(0,half,c.acol); else fillRect(half,W-half,c.wcol);
