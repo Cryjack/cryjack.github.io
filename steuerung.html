@@ -44,6 +44,8 @@
   .foot-in{max-width:560px;margin:auto;padding:8px 14px;display:flex;flex-wrap:wrap;gap:3px 14px;font-size:12.5px;color:var(--muted);align-items:center}
   .foot-in b{color:var(--txt);font-weight:600}
   .foot-in .warn{color:#ff7043;font-weight:700}
+  .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:44px;z-index:60;background:#1b1f27;border:1px solid var(--line);color:var(--txt);padding:8px 14px;border-radius:999px;font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;max-width:92vw}
+  .toast.show{opacity:1}
   .needsBle{opacity:.45;pointer-events:none}
   body.bleon .needsBle{opacity:1;pointer-events:auto}
 </style>
@@ -217,7 +219,6 @@
         <button class="btn sec mini" id="calBtn" title="Kalibrieren">⚖</button>
       </div>
       <button class="btn" id="sysSave" style="margin-top:8px">Spannung &amp; Temperatur senden</button>
-      <div class="hint" id="sysStatus"></div>
     </div>
     <div class="card needsBle">
       <h2>Selbsttest</h2>
@@ -257,6 +258,7 @@
  </div>
 </div>
 
+<div id="sysStatus" class="toast"></div>
 <footer>
   <div class="foot-in">
     <span>Preset <b id="fPreset">–</b></span>
@@ -266,8 +268,7 @@
     <span>Akku <b id="fVbat">–</b></span>
     <span>BLE <b id="fBle">–</b></span>
     <span>WLAN <b id="fWifi">–</b></span>
-    <span title="längster Schleifendurchlauf – Werte über ~35 ms können die Laufschrift stocken lassen">Takt <b id="fLoop">–</b></span>
-    <span>Sync <b id="fDiag">–</b></span>
+    <span title="Spitze / Mittel je Sekunde · Dauer des letzten LED-Sendevorgangs (ms)">Takt <b id="fLoop">–</b></span>
     <span class="warn" id="fWarn" style="display:none">⚠ UNTERSPANNUNG</span>
   </div>
 </footer>
@@ -279,20 +280,20 @@ const U={text:"f0a00001",textmode:"f0a00002",animmode:"f0a00003",bright:"f0a0000
          autodim:"f0a0000b",power:"f0a0000c",acolor:"f0a0000d",wigcolor:"f0a0000e",mirror:"f0a0000f",buzzer:"f0a00010",mindim:"f0a00011",preset:"f0a00012",state:"f0a00013",wifi:"f0a00014",symbol:"f0a00015",syscfg:"f0a00016",test:"f0a00017",btname:"f0a00018",blepin:"f0a00019",stled:"f0a0001a",buzfreq:"f0a0001b",reset:"f0a0001c",oledcfg:"f0a0001d",config:"f0a0001e",system:"f0a0001f"};
 const uuid=s=>`${s}-1234-4a3c-8c00-aabbccddeeff`;
 let chars={}; let bleDev=null;
-let lastCS=null, lastSS=null, cfgBusy=false;
+let lastCS=null, lastSS=null, cfgBusy=false, lastWrite=0;
 // Notifications tragen nur MTU-3 Byte (iOS/Bluefy oft 182) - die Config ist groesser.
 // Deshalb: der kleine Live-Feed transportiert Zaehler; bei Aenderung wird die Config per Read geholt (bis 512 Byte).
 async function syncCfg(st){
-  if(cfgBusy) return; cfgBusy=true;
+  if(cfgBusy) return;
+  if(Date.now()-lastWrite<1500) return;        // waehrend eigener Bedienung nicht zurueckladen (sonst kaempft der Regler gegen das Echo)
+  if(!chars.config||!chars.system) return;
+  cfgBusy=true;
   try{
-    if(!("cS" in st)){ const d=$("fDiag"); if(d){ d.textContent="alte Firmware (kein cS)"; d.style.color="#ff7043"; } return; }
-    if(!chars.config || !chars.system){ const d=$("fDiag"); if(d){ d.textContent="Kanal fehlt: "+(!chars.config?"config ":"")+(!chars.system?"system":""); d.style.color="#ff7043"; } return; }
-    let n=0;
-    if(st.cS!==lastCS){ lastCS=st.cS; applyState(JSON.parse(new TextDecoder().decode(await chars.config.readValue())),false); n++; }
-    if(st.sS!==lastSS){ lastSS=st.sS; applyState(JSON.parse(new TextDecoder().decode(await chars.system.readValue())),false); n++; }
-    const d=$("fDiag"); if(d){ d.textContent="OK c"+st.cS+"/s"+st.sS+(n?" ↻":""); d.style.color=""; }
-  }catch(e){ const d=$("fDiag"); if(d){ d.textContent="Read-Fehler: "+(e.message||e); d.style.color="#ff7043"; } }finally{ cfgBusy=false; }
+    if(("cS" in st) && st.cS!==lastCS){ lastCS=st.cS; applyState(JSON.parse(new TextDecoder().decode(await chars.config.readValue())),false); }
+    if(("sS" in st) && st.sS!==lastSS){ lastSS=st.sS; applyState(JSON.parse(new TextDecoder().decode(await chars.system.readValue())),false); }
+  }catch(_){ lastCS=null; lastSS=null; }finally{ cfgBusy=false; }
 }
+
 const p2r=p=>Math.round(p*255/100), r2p=r=>Math.round(r*100/255);  // Prozent <-> Roh 0..255
 const $=id=>document.getElementById(id);
 const numDE=v=>parseFloat(String(v).replace(",","."));     // Komma oder Punkt annehmen
@@ -305,7 +306,7 @@ function setState(ok,t){$("dot").className="dot"+(ok?" on":"");
   document.body.classList.toggle("bleon",ok);
   const pw=$("power"); pw.disabled=!ok; pw.style.opacity=ok?1:.5;
   if(!ok) clearFooter();}
-const write=async(k,d)=>{ if(chars[k]) await chars[k].writeValue(d); };
+const write=async(k,d)=>{ lastWrite=Date.now(); if(chars[k]) await chars[k].writeValue(d); };
 
 $("connect").onclick=async()=>{
   if(bleDev && bleDev.gatt.connected){ bleDev.gatt.disconnect(); return; }   // Umschalter: trennen
@@ -340,11 +341,10 @@ $("connect").onclick=async()=>{
       }
       lastCS=null; lastSS=null;                       // erste Live-Meldung zieht die Zaehler nach
       try{ const bn=new TextDecoder().decode(await chars.btname.readValue()); if(bn) $("btname").value=bn; }catch(_){}
-      { const d=$("fDiag"); if(d){ d.textContent="verbunden"; d.style.color=""; } }
       try{ const d=await chars.blepin.readValue(); $("pinOn").checked = d.byteLength>0 && d.getUint8(0)===1; }catch(_){}
       try{ const d=await chars.stled.readValue(); if(d.byteLength>=2){ const p=r2p(d.getUint8(0)); $("stled").value=p; $("stVal").textContent=p; $("stdim").checked=d.getUint8(1)===1; } }catch(_){}
       try{ const d=await chars.buzfreq.readValue(); if(d.byteLength>=2){ const f=d.getUint8(0)|(d.getUint8(1)<<8); $("bzfreq").value=f; $("bzfVal").textContent=f; } }catch(_){}
-    }catch(e){ const d=$("fDiag"); if(d){ d.textContent="Init-Fehler: "+(e.message||e); d.style.color="#ff7043"; } }
+    }catch(e){ setState(true,"verbunden (eingeschränkt): "+(e.message||e)); }
   }catch(e){setState(false,"Fehler: "+e.message);}
 };
 
@@ -516,8 +516,10 @@ function sendSyscfg(){
   const tmx=Math.max(50,Math.min(110,Math.round(numDE($("tempMax").value))||80));
   write("syscfg",Uint8Array.of(off,on,bt,curVGain&255,(curVGain>>8)&255,tmx));
 }
-$("sysSave").onclick=()=>{ sendSyscfg(); $("sysStatus").textContent="Gesendet und gespeichert."; };
-$("btSave").onclick=()=>{ sendSyscfg(); $("sysStatus").textContent="Selbsttest-Einstellung gespeichert."; };
+let toastT=0;
+function toast(msg){ const e=$("sysStatus"); if(!e) return; e.textContent=msg; e.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>e.classList.remove("show"),2200); }
+$("sysSave").onclick=()=>{ sendSyscfg(); toast("Spannung & Temperatur gespeichert"); };
+$("btSave").onclick=()=>{ sendSyscfg(); toast("Selbsttest-Einstellung gespeichert"); };
 $("btnameSave").onclick=async()=>{ const n=($("btname").value||"").trim()||"FW-Frontdisplay"; await write("btname",enc.encode(n)); $("sysStatus").textContent="Name gespeichert – wird nach Neustart aktiv."; };
 $("pinSave").onclick=async()=>{ const on=$("pinOn").checked?1:0; const raw=($("pinVal").value||"").trim(); let payload;
   if(raw!==""){ const v=Math.max(0,Math.min(999999,parseInt(raw,10)||0)); payload=Uint8Array.of(on, v&255,(v>>8)&255,(v>>16)&255,(v>>>24)&255); }
@@ -605,10 +607,10 @@ function updateFooter(st){ const g=(id,v)=>{const e=$(id);if(e)e.textContent=v;}
   g("fTemp",("temp" in st && st.temp>0)?(st.temp+" °C"):"–");
   g("fVbat",("vbat" in st)?((st.vbat/10).toFixed(1).replace(".",",")+" V"):"–");
   g("fBle","✓"); g("fWifi",st.wifi?"AN":"–");
-  if("lp" in st){ const e=$("fLoop"); if(e){ e.textContent=st.lp+" ms"; e.style.color=st.lp>35?"#ff7043":""; } }
+  if("lp" in st){ const e=$("fLoop"); if(e){ e.textContent=st.lp+"/"+(("la" in st)?st.la:"–")+(("sh" in st)?"·"+st.sh:"")+" ms"; e.style.color=st.lp>35?"#ff7043":""; } }
   const w=$("fWarn"); if(w){ if(st.uvlock){w.textContent="⚠ UNTERSPANNUNG";w.style.display="inline";} else if(st.templock){w.textContent="⚠ ÜBERTEMPERATUR";w.style.display="inline";} else w.style.display="none"; }
 }
-function clearFooter(){ ["fPreset","fHell","fLux","fTemp","fVbat","fBle","fWifi","fLoop","fDiag"].forEach(id=>{const e=$(id);if(e)e.textContent="–";});
+function clearFooter(){ ["fPreset","fHell","fLux","fTemp","fVbat","fBle","fWifi","fLoop"].forEach(id=>{const e=$(id);if(e)e.textContent="–";});
   const w=$("fWarn"); if(w) w.style.display="none"; }
 
 load(); save(); render();
