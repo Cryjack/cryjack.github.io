@@ -300,7 +300,7 @@ $("connect").onclick=async()=>{
       if(chars.config){ applyState(JSON.parse(new TextDecoder().decode(await chars.config.readValue())),true); }
       try{ const bn=new TextDecoder().decode(await chars.btname.readValue()); if(bn) $("btname").value=bn; }catch(_){}
       try{ const d=await chars.blepin.readValue(); $("pinOn").checked = d.byteLength>0 && d.getUint8(0)===1; }catch(_){}
-      try{ const d=await chars.stled.readValue(); if(d.byteLength>=2){ $("stled").value=d.getUint8(0); $("stVal").textContent=d.getUint8(0); $("stdim").checked=d.getUint8(1)===1; } }catch(_){}
+      try{ const d=await chars.stled.readValue(); if(d.byteLength>=2){ const p=r2p(d.getUint8(0)); $("stled").value=p; $("stVal").textContent=p; $("stdim").checked=d.getUint8(1)===1; } }catch(_){}
       try{ const d=await chars.buzfreq.readValue(); if(d.byteLength>=2){ const f=d.getUint8(0)|(d.getUint8(1)<<8); $("bzfreq").value=f; $("bzfVal").textContent=f; } }catch(_){}
     }catch(_){}
   }catch(e){setState(false,"Fehler: "+e.message);}
@@ -352,12 +352,15 @@ let presets=[], persistent=true;
 function load(){ try{const s=localStorage.getItem("fw_presets");presets=s?JSON.parse(s):DEFAULTS.slice();}catch(e){persistent=false;presets=DEFAULTS.slice();} }
 function save(){ try{localStorage.setItem("fw_presets",JSON.stringify(presets));}catch(e){persistent=false;}
   $("storeHint").textContent=persistent?"Presets werden im Browser gespeichert.":"Speichern dauerhaft nur im eigenen Browser; sonst nur für diese Sitzung."; }
-function capture(){ return {text:$("text").value,tm:+$("textmode").value,am:+$("animmode").value,fp:+$("flashpat").value,
+function capture(){ return {text:$("text").value,tm:+$("textmode").value,am:+$("animmode").value,fp:+$("flashpat").value,sy:+$("symbol").value,mi:+$("mirror").value,
   wm:+$("wordms").value,sm:+$("scrollms").value,at:+$("animtakt").value,ar:+$("animrep").value,
   tc:$("tcolor").value, ac:$("acolor").value, wc:$("wcolor").value}; }
 async function apply(p){
   const tc=p.tc||p.color||"#ff5000", ac=p.ac||p.color||"#ff5000", wc=p.wc||ac;
-  if(p.text!=="") { await write("text",enc.encode(p.text)); $("text").value=p.text; }
+  if(p.text) { await write("text",enc.encode(p.text)); $("text").value=p.text; }
+  const sy=("sy" in p)?+p.sy:0, mi=("mi" in p)?+p.mi:0;   // alte Vorlagen: Symbol aus / Normal
+  await write("symbol",Uint8Array.of(sy)); $("symbol").value=sy;
+  await write("mirror",Uint8Array.of(mi)); $("mirror").value=mi;
   await write("tcolor",rgb(tc)); $("tcolor").value=tc;
   await write("acolor",rgb(ac)); $("acolor").value=ac;
   await write("wigcolor",rgb(wc)); $("wcolor").value=wc;
@@ -406,7 +409,7 @@ function applyState(st, full){
   if("power" in st){ powerOn=!!st.power; $("power").textContent="Panel: "+(powerOn?"AN":"AUS"); $("power").classList.toggle("on",powerOn); }
   if("vbat" in st) lastVbat=st.vbat/10;
   if("vGain" in st) curVGain=st.vGain;
-  document.querySelectorAll("#devchips .chip, #devpresets .name").forEach(x=>x.classList.toggle("on",+x.dataset.i===st.preset));
+  if("preset" in st) document.querySelectorAll("#devchips .chip, #devpresets .name").forEach(x=>x.classList.toggle("on",+x.dataset.i===st.preset));
   const foc=document.activeElement;
   const isCfg=("text" in st); const presetChanged=isCfg&&("preset" in st)&&st.preset!==lastPreset; if(isCfg&&"preset" in st) lastPreset=st.preset;
   const sv=(id,v)=>{ const el=$(id); if(el&&el!==foc&&(presetChanged||el.value!=v)) el.value=v; };
@@ -414,14 +417,14 @@ function applyState(st, full){
   const sc=(id,val)=>{ const el=$(id); if(el&&el!==foc) el.checked=val; };
   // Textfeld nur bei echter Geraete-Aenderung uebernehmen (ungesendeten Entwurf nicht ueberschreiben)
   if("text" in st && (presetChanged || st.text!==lastDevText)){ lastDevText=st.text; const el=$("text"); if(el&&el!==foc) el.value=st.text; }
-  if("textMode" in st) sv("textmode",st.textMode);
+  if("tM" in st) sv("textmode",st.tM);
   if("symbol" in st)   sv("symbol",st.symbol);
-  if("animMode" in st) sv("animmode",st.animMode);
+  if("aM" in st) sv("animmode",st.aM);
   if("fP" in st) sv("flashpat",st.fP);
-  if("mirror" in st)   sv("mirror",st.mirror);
-  if("bright" in st)   sl("bright","brVal",r2p(st.bright));
-  if("minDim" in st)   sl("mindim","mdVal",r2p(st.minDim));
-  if("autoDim" in st)  sc("autodim",!!st.autoDim);
+  if("mr" in st)   sv("mirror",st.mr);
+  if("bR" in st)   sl("bright","brVal",r2p(st.bR));
+  if("mD" in st)   sl("mindim","mdVal",r2p(st.mD));
+  if("aD" in st)  sc("autodim",!!st.aD);
   if("buzzA" in st) sc("buzzAnim",!!st.buzzA); if("buzzC" in st) sc("buzzConn",!!st.buzzC); if("buzzU" in st) sc("buzzUV",!!st.buzzU); if("buzzP" in st) sc("buzzPreset",!!st.buzzP);
   if("wifi" in st)     sc("wifi",!!st.wifi);
   if("oA" in st) sc("oledauto",!!st.oA);
@@ -475,7 +478,8 @@ $("facReset").onclick=async()=>{
 $("symTest").onclick=async()=>{
   const prev=(lastFullState&&("symbol" in lastFullState))?lastFullState.symbol:0;
   $("bkHint").textContent="Symbol-Test läuft …";
-  for(let i=1;i<=5;i++){ await write("symbol",Uint8Array.of(i)); $("symbol").value=i; await sleep(1600); }
+  const nSym=$("symbol").options.length-1;                       // alle Symbole (dynamisch, inkl. neuer)
+  for(let i=1;i<=nSym;i++){ await write("symbol",Uint8Array.of(i)); $("symbol").value=i; await sleep(1600); }
   await write("symbol",Uint8Array.of(prev)); $("symbol").value=prev;
   $("bkHint").textContent="Symbol-Test fertig.";
 };
@@ -496,6 +500,9 @@ $("bkImport").onclick=async()=>{
   await applyFullState(st); $("bkHint").textContent="Einstellungen importiert.";
 };
 async function applyFullState(st){
+  // Backups: neue Kurz-Keys auf alte Namen abbilden (Alt- und Neu-Backups importierbar)
+  const mapk=[["tM","textMode"],["aM","animMode"],["aD","autoDim"],["mr","mirror"],["bR","bright"],["mD","minDim"]];
+  for(const [nk,ok] of mapk){ if((nk in st)&&!(ok in st)) st[ok]=st[nk]; }
   if("text" in st){ await write("text",enc.encode(st.text||"")); $("text").value=st.text||""; }
   if("textMode" in st){ await write("textmode",Uint8Array.of(st.textMode)); $("textmode").value=st.textMode; }
   if("animMode" in st){ await write("animmode",Uint8Array.of(st.animMode)); $("animmode").value=st.animMode; }
